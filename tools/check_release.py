@@ -8,6 +8,7 @@ This is a guardrail; manual review and a separate secret scanner remain required
 from __future__ import annotations
 
 import argparse
+import hashlib
 from pathlib import Path, PurePosixPath
 import re
 import tarfile
@@ -39,6 +40,13 @@ SKIP_DIRS = {
     "test-artifacts",
 }
 LIMIT = 8 * 1024 * 1024
+# Pin only screenshots reviewed for visible private data and PNG metadata.
+# Recapturing requires a fresh visual/metadata review before changing these hashes.
+REVIEWED_IMAGES = {
+    "docs/images/reading-chinese.png": "0cab114c895645e1d88aa49a8b4a28bd5770b8a0f6d8bfb442e666d51558e875",  # pragma: allowlist secret
+    "docs/images/reading-english.png": "efb16dd9d9045d51293b8db55a41fd1be0575b42cd92e11cd18e129b92fdb974",  # pragma: allowlist secret
+    "docs/images/side-by-side.png": "78965f784389b610678b2b8d25d230a119b03c48e4185940eb8d9a5570bab821",  # pragma: allowlist secret
+}
 PATTERNS = {
     "absolute-user-path": re.compile(
         r"/(?:Users|home)/[A-Za-z0-9_.-]+/|[A-Za-z]:[\\/]+Users[\\/]+[A-Za-z0-9_.-]+[\\/]"
@@ -54,13 +62,15 @@ def allowed(name: str) -> bool:
     path = PurePosixPath(name)
     if path.is_absolute() or ".." in path.parts or "\\" in name:
         return False
-    if name in ROOT_FILES:
+    if name in ROOT_FILES or name in REVIEWED_IMAGES:
         return True
     if name in {
         ".github/workflows/ci.yml",
         "examples/river.txt",
         "examples/first-pages.txt",
+        "examples/first-pages.en.txt",
         "tests/acceptance_pixels.cjs",
+        "tools/render_product.cjs",
     }:
         return True
     if len(path.parts) == 2:
@@ -93,6 +103,10 @@ def inspect_entry(name: str, data: bytes) -> list[str]:
         issues.append("file-not-allowlisted")
     if len(data) > LIMIT:
         return issues + ["oversized-file"]
+    if name in REVIEWED_IMAGES:
+        if hashlib.sha256(data).hexdigest() != REVIEWED_IMAGES[name]:
+            issues.append("unreviewed-image-content")
+        return issues
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError:

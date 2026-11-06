@@ -1,5 +1,14 @@
 # 更新记录 / Changelog
 
+## 1.2.0b7 — 中英文阅读与真实产品图 / Chinese and English reading
+
+- 调整定位为中英文终端阅读器，面向等待代码、构建、测试或 AI 编程任务的碎片时间。根据官方资料区分终端能力与本项目实测范围。
+- 修复英文缩写、带音标单词及普通长单词的断行；超过整行宽度的长串仍可换行，不丢原文字符。
+- 修复 TXT 书名后紧接短章节名时被误判为作者的问题。
+- 增加原创英文短篇、真实 PTY 产品截图及公开截图复现工具；本地完整验证 O. Henry 的公版短篇，原文不随仓库分发。
+
+English: positions MODU as a Chinese/English reader for spare moments during code, build, test, or agent work. Keeps English contractions and accented words intact, corrects short chapter headings mistaken for authors, and adds an original English story plus genuine PTY product images. A complete public-domain English short story was validated locally without bundling its text.
+
 ## 1.2.0b6 — 双语界面 / Bilingual interface
 
 - 新增英文书架、目录栏、搜索、书签、导入、设置、帮助、主题名称、页码和提示；书籍正文保持原文。

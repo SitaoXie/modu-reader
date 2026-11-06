@@ -48,7 +48,11 @@ def plain_blocks(text: str, title: str) -> tuple[list[Block], str]:
     author = ""
     if len(nonempty) > 2 and lines[nonempty[0]].strip() == title:
         candidate = lines[nonempty[1]].strip()
-        if len(candidate) <= 12 and not re.search(r"[，。！？；“”]", candidate):
+        if (
+            len(candidate) <= 12
+            and not CHAPTER.match(candidate)
+            and not re.search(r"[，。！？；“”]", candidate)
+        ):
             author_index = nonempty[1]
             author = re.sub(r"^作者[：:]?\s*", "", candidate)
     result = []

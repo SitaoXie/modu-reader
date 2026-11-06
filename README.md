@@ -1,17 +1,21 @@
-# 墨读 MODU · 中文终端阅读器
+# 墨读 MODU · 中英文终端阅读器
 
 [English](README.en.md) · 简体中文
 
 [源码](https://github.com/SitaoXie/modu-reader) · [问题反馈](https://github.com/SitaoXie/modu-reader/issues)
 
-**AI 在写代码，你在旁边读两页。**
+**代码在跑，你在旁边读两页。**
 
-MODU 是支持 TXT、EPUB、PDF 和 Markdown 的离线终端电子书阅读器。把它放在 Codex 等开发工具旁边的小终端里，一边读小说，一边让开发进度留在视野中；下次输入 `modu`，接着上次的位置读。
+MODU 是面向中文和英文阅读的离线终端电子书阅读器，支持 TXT、EPUB、PDF 和 Markdown。等代码执行、测试、构建或 AI 编程任务时，在旁边的终端读几页小说，让开发进度继续留在视野中；下次输入 `modu`，接着上次的位置读。
 
 - **适合侧边阅读**：窄窗口排版、可收起的章节目录、滚轮与键盘翻页。
 - **随时离开，随时接着读**：自动保存位置，调整终端大小后保持阅读锚点。
-- **中文读起来舒服**：中文标点排版，黑金、浅色、深色主题，适当留白。
+- **中英文都读得舒服**：中文标点避头尾、英文单词与缩写完整换行，八款协调的阅读主题。
 - **书留在本机**：无需账户，运行时离线，无遥测、后台服务器或 WebView。
+
+![中文阅读：纸笺主题和章节侧栏](docs/images/reading-chinese.png)
+
+中文纸笺主题。英文黑金主题见 [English README](README.en.md)。截图使用原创示例与真实终端输出，详见[截图说明](docs/product-images.md)。
 
 ## 先读两页
 
@@ -22,6 +26,8 @@ git clone https://github.com/SitaoXie/modu-reader.git
 cd modu-reader
 uvx --from . modu --library ./test-artifacts/demo examples/first-pages.txt
 ```
+
+英文示例可将最后一行换为 `uvx --from . modu --lang en --library ./test-artifacts/demo-en examples/first-pages.en.txt`。
 
 按 **Space** 翻页，**c** 看目录，**t** 换主题，**q** 保存退出。再次运行同一命令即可续读。示例书库单独保存在 `test-artifacts/demo`，不影响默认书库；首次运行需安装依赖，之后阅读可离线进行。
 
@@ -36,20 +42,23 @@ modu
 
 如 shell 找不到命令，可按 uv 的提示运行 `uv tool update-shell` 并重新打开终端。项目本身不修改 shell 配置、主题、系统偏好或其他工具的通知设置。当前通过官方 GitHub 源码安装，尚未发布到 PyPI；不要把同名在线包当作本项目。
 
-## 在 Codex 或编程终端旁边读书
+## 用碎片时间读书，保留开发进度
 
-在支持并排窗口或终端分屏的环境中，一侧保留开发工具，另一侧运行 `modu`。MODU 使用独立终端，不要求访问你的代码仓库。
+![真实测试输出与 MODU 并排运行](docs/images/side-by-side.png)
 
-| 你的场景 | 怎么用 |
+上图是 tmux 中真实的项目测试输出和 MODU。阅读器使用单独的终端窗格；需要处理开发任务时，切换焦点或按 `q` 保存退出。
+
+| 工作环境 | 推荐用法与确认依据 |
 | --- | --- |
-| 等待 Codex 等编程代理完成任务 | 在旁边的终端读几页，开发工具的进度与提示保持可见 |
-| 等待构建、测试或部署 | 用一个小终端读书，原有日志窗格继续显示输出 |
-| 终端空间较窄 | 用 `c` 收起目录；小于 70 列时目录自动改为弹出列表 |
-| 需要马上回去处理开发任务 | 按 `q` 保存退出，下次输入 `modu` 自动续读 |
+| VS Code | 在集成终端使用 Split Terminal，一侧运行代码或查看日志，另一侧运行 `modu`。[官方分屏说明](https://code.visualstudio.com/docs/terminal/basics#_groups-split-panes) |
+| Claude Code、Codex 等编程工具 | 把 MODU 放在独立终端或分屏中，保留代理的进度和审批提示。Claude Code 官方确认支持终端运行；Codex 旁侧阅读已由使用者验证。[Claude Code 文档](https://code.claude.com/docs/en/overview) |
+| 普通命令行、测试、构建 | 使用并排窗口，或像上图一样用 tmux 分屏；无需运行 AI 工具。 |
 
-当前通过**并排可见**来关注开发进度。MODU 是独立阅读器，不读取 AI 对话、执行代理任务或自动提醒任务完成；通知接入属于后续探索。可以继续使用开发工具已有的通知。
+这些是终端工作方式，不需要专用插件。MODU 不读取 AI 对话，也不自动接收任务完成通知；可使用开发工具自身的通知功能。VS Code / Claude Code 的终端能力已按官方资料核对，专属原生界面尚未逐项验收。[环境核对与实测范围](docs/terminal-environments.md)
 
-**状态：1.2.0b6 开源候选版。** macOS 已本地验证，包括用户在目标内置终端确认右侧轨道对齐和隐藏正常。Windows/Linux 提供跨平台代码和 CI 配置，原生终端体验尚未验收。Windows 可在 Windows Terminal + PowerShell 中尝试相同命令；需要支持鼠标和真彩色的终端。界面支持简体中文和英文；书籍正文保留原文。
+Antigravity 官方文档也说明了侧栏终端，但本项目尚未完成其原生交互验收，暂列“可尝试、未实测”，不列为已验证支持。[官方说明](https://antigravity.google/docs/features#integrated-terminal)
+
+**状态：1.2.0b7 开源候选版。** macOS 已本地验证，包括用户在目标内置终端确认右侧轨道对齐和隐藏正常。Windows/Linux 提供跨平台代码和 CI 配置，原生终端体验尚未验收。Windows 可在 Windows Terminal + PowerShell 中尝试相同命令；需要支持鼠标和真彩色的终端。界面支持简体中文和英文；书籍正文保留原文。
 
 ## 界面语言
 
@@ -144,14 +153,14 @@ uv run python tools/scan_secrets.py .
 真实 POSIX 终端回归需要 `tmux` 在 PATH 中：
 
 ```sh
-uv run python tests/acceptance_language.py --work ./test-artifacts/language
+uv run python tests/acceptance_language.py --book examples/first-pages.en.txt --work ./test-artifacts/language
 uv run python tests/acceptance_pty.py examples/river.txt --work ./test-artifacts/pty
 uv run python tests/acceptance_scrollbar.py --python .venv/bin/python --work ./test-artifacts/rail
 uv run python tests/acceptance_scrollbar.py --python .venv/bin/python --width-model narrow-punctuation --work ./test-artifacts/rail-narrow
 uv run python tests/acceptance_scrollbar.py --python .venv/bin/python --width-model wide-ambiguous --work ./test-artifacts/rail-wide
 ```
 
-以上诊断仅存在于测试驱动中，输出保存在被忽略的 `test-artifacts/`，不得作为公开测试素材。测试和示例只使用项目原创文字；不附带商业书籍、个人阅读记录、真实聊天记录或个人终端配置。
+以上诊断仅存在于测试驱动中，输出保存在被忽略的 `test-artifacts/`，不得作为公开测试素材。仓库内附带的测试素材和示例只使用项目原创文字；不附带商业书籍、个人阅读记录、真实聊天记录或个人终端配置。
 
 参见 [贡献说明](CONTRIBUTING.md)、[安全策略](SECURITY.md)、[发布检查](docs/release-checklist.md)、[第三方许可](THIRD_PARTY_NOTICES.md)。
 

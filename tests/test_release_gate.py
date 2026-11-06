@@ -9,6 +9,17 @@ gate = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gate)
 
 
+def test_release_gate_only_accepts_reviewed_images():
+    root = Path(__file__).parents[1]
+    for name in gate.REVIEWED_IMAGES:
+        data = (root / name).read_bytes()
+        assert gate.inspect_entry(name, data) == []
+        assert gate.inspect_entry(name, data + b"unreviewed metadata") == [
+            "unreviewed-image-content"
+        ]
+        assert "file-not-allowlisted" in gate.inspect_entry("docs/images/private.png", data)
+
+
 def test_release_gate_rejects_private_data_and_traversal(tmp_path):
     archive = tmp_path / "release.zip"
     with zipfile.ZipFile(archive, "w") as output:

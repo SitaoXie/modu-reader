@@ -84,10 +84,18 @@ def char_width(char: str) -> int:
     return cell_len(char)
 
 
+LATIN_WORD = regex.compile(
+    r"['’]?[\p{Latin}\p{N}][\p{Latin}\p{M}\p{N}]*(?:['’][\p{Latin}\p{N}][\p{Latin}\p{M}\p{N}]*)*"
+)
+
+
 def wrap(text: str, width: int) -> tuple[Line, ...]:
     """Wrap without losing a codepoint; keep CJK closing/opening punctuation together."""
     width = max(4, width)
     units = [(m.start(), m.end(), m.group()) for m in regex.finditer(r"\X", text)]
+    unit_starts = [start for start, _, _ in units]
+    words = list(LATIN_WORD.finditer(text))
+    word_starts = [word.start() for word in words]
     lines = []
     a, n = 0, len(units)
     while a < n:
@@ -104,18 +112,19 @@ def wrap(text: str, width: int) -> tuple[Line, ...]:
             ):
                 legal -= 1
             b = legal
-            # Avoid breaking a normal Latin word, while still supporting long URLs.
-            if (
-                units[b - 1][2].isascii()
-                and units[b - 1][2].isalnum()
-                and units[b][2].isascii()
-                and units[b][2].isalnum()
-            ):
-                word = b
-                while word > a and units[word - 1][2].isascii() and units[word - 1][2].isalnum():
-                    word -= 1
-                if word > a and word - a >= (b - a) // 2:
-                    b = word
+            # Keep an ordinary Latin word (including apostrophes / accents) whole.
+            # Only overlong tokens, such as URLs, need a hard cell-width break.
+            cut = units[b][0]
+            word_index = bisect_right(word_starts, cut) - 1
+            if word_index >= 0:
+                word = words[word_index]
+                if word.start() < cut < word.end() and cell_len(word[0]) <= width:
+                    beginning = bisect_right(unit_starts, word.start()) - 1
+                    if beginning > a:
+                        b = beginning
+                        # Do not strand an opening quote before the moved word.
+                        while b > a + 1 and units[b - 1][2][-1] in OPEN:
+                            b -= 1
         start, end = units[a][0], units[b - 1][1]
         lines.append(Line(start, end, text[start:end]))
         a = b

@@ -28,6 +28,10 @@ def main():
     parser.add_argument(
         "--command", help="Installed modu launcher to test instead of python -m modu"
     )
+    parser.add_argument(
+        "--book", type=Path, help="Local book to verify (use a new isolated work directory)"
+    )
+    parser.add_argument("--columns", type=int, default=84, help="Starting terminal width")
     args = parser.parse_args()
     work = args.work.resolve()
     work.mkdir(parents=True, exist_ok=True)
@@ -35,7 +39,11 @@ def main():
     if library.exists():
         parser.error("Use a new --work directory so previous reading state cannot affect results")
     command = [args.command] if args.command else [args.python, "-m", "modu"]
-    book = Path(__file__).resolve().parents[1] / "examples" / "first-pages.txt"
+    book = (
+        args.book.resolve()
+        if args.book
+        else Path(__file__).resolve().parents[1] / "examples" / "first-pages.txt"
+    )
     env = os.environ.copy()
     env.update(TERM="xterm-256color", COLORTERM="truecolor", PYTHONUTF8="1")
     env.pop("NO_COLOR", None)
@@ -52,7 +60,7 @@ def main():
         return re.sub(r"\s+", "", text.replace("\u2060", ""))
 
     wanted = normalize("\n\n".join(block[0] for block in document["blocks"]))
-    screen = pyte.Screen(84, 36)
+    screen = pyte.Screen(args.columns, 36)
     stream = pyte.Stream(screen)
     child = None
 
@@ -62,7 +70,7 @@ def main():
             command[1:] + ["--library", str(library), *flags],
             env=env,
             encoding="utf-8",
-            dimensions=(36, 84),
+            dimensions=(36, args.columns),
             timeout=6,
         )
 
@@ -115,7 +123,9 @@ def main():
     try:
         child = launch("--lang", "en", str(book))
         wait(lambda: pages() is not None)
-        assert has("Contents") and has("Search /")
+        assert has("Search /")
+        if args.columns >= 70:
+            assert has("Contents")
         cursor, count, switches = 0, 0, 0
         starts = []
         while True:
@@ -220,7 +230,7 @@ def main():
                 )
                 == "en"
             )
-        screen = pyte.Screen(84, 36)
+        screen = pyte.Screen(args.columns, 36)
         stream = pyte.Stream(screen)
         child = launch()  # No --lang: language and source anchor must persist.
         wait(lambda: pages() is not None)

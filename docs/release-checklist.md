@@ -34,11 +34,11 @@ Before the first commit, set `git config --local user.useConfigOnly true` and ex
 官方仓库为 [SitaoXie/modu-reader](https://github.com/SitaoXie/modu-reader)。仓库简介、相关 Topics 与私密漏洞报告已配置；尚未发布到 PyPI。下面保留传播与后续发布建议。
 
 - 仓库名：`modu-reader`，与 Python 分发名一致；启动命令为 `modu`。
-- 中文简介：`中文终端阅读器：在 Codex 等开发工具旁读小说。离线 TXT / EPUB / PDF / Markdown，自动续读。`
-- English About: `An offline terminal ebook reader for reading beside Codex and your coding tools. Chinese typography, TXT/EPUB/PDF/Markdown, automatic resume.`
+- 中文简介：`中英文终端阅读器：等代码、构建或编程代理运行时读两页。离线 TXT / EPUB / PDF / Markdown，自动续读。`
+- English About: `A Chinese and English terminal ebook reader for spare moments while code, builds or agents run. Offline TXT/EPUB/PDF/Markdown.`
 - Suggested GitHub topics: `terminal-reader`, `ebook-reader`, `tui`, `cli`, `chinese`, `epub`, `pdf`, `markdown`, `offline`, `textual`, `python`, `vibe-coding`.
 - 在仓库名称、About 和 README 中自然使用准确关键词；不填无关热门标签，不承诺搜索排名。仓库公开后再补真实的 Repository、Issues、Changelog 链接到包元数据，禁止使用虚构地址。
-- README 的试读使用 `examples/first-pages.txt`（原创短篇）；`examples/river.txt` 是重复段落组成的长篇回归素材，适合压力测试。
+- README 的试读使用 `examples/first-pages.txt` 与 `examples/first-pages.en.txt`（中英文原创短篇）；`examples/river.txt` 是重复段落组成的长篇回归素材，适合压力测试。
 - 发布演示可录制 20–30 秒：并排的开发工具和 MODU → 原创短篇翻页 → 收起目录/调整宽度 → 退出并续读。开发窗格只使用公开演示项目，录制前检查标题、路径、账号和通知；不要使用私人书籍或本人的聊天截图。没有真实通知接入时，不展示或暗示自动收到 AI 完工提醒。
 - 首次传播可选题：`等 Codex 写代码时，我做了一个放在旁边的终端阅读器`；English: `Read a few pages while your coding agent works — MODU, a terminal ebook reader`。
 - 先完成官方仓库与经过核验的 Release。确认包名归属并完成正式包发布后，才能把基于索引的安装命令放到 README；当前保留已验证的本地源码命令。

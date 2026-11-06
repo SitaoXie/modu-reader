@@ -1,27 +1,33 @@
-# MODU · A terminal ebook reader
+# MODU · A Chinese & English terminal ebook reader
 
 English · [简体中文](README.md)
 
 [Source](https://github.com/SitaoXie/modu-reader) · [Issues](https://github.com/SitaoXie/modu-reader/issues)
 
-**Read a few pages while your coding agent works.**
+**Read a few pages while your code runs.**
 
-MODU is an offline terminal ebook reader for TXT, EPUB, PDF, and Markdown, with a focus on Chinese typography. Keep it in a small terminal beside Codex or your development tools, read a novel while progress stays in view, and type `modu` next time to pick up where you left off.
+MODU is an offline terminal ebook reader for Chinese and English, supporting TXT, EPUB, PDF, and Markdown. Read a novel in a nearby terminal while code, tests, builds, or coding agents run. Keep progress in view, and type `modu` next time to pick up where you left off.
 
 - **Fits beside your work**: narrow-window layouts, a collapsible chapter sidebar, mouse scrolling, and keyboard paging.
 - **Easy to put down and resume**: automatic position saving and source anchors that survive terminal resizing.
-- **Comfortable Chinese reading**: punctuation-aware wrapping, black/gold, light, and dark themes, and room between paragraphs.
+- **Comfortable in both languages**: CJK punctuation rules, intact English words and contractions, and eight coordinated reading themes.
 - **Your books stay local**: no account, runtime network requests, telemetry, background server, or WebView.
+
+![English reading in the black-and-gold theme](docs/images/reading-english.png)
+
+English text in the default black-and-gold theme. See the [Chinese README](README.md) for the light paper theme. Captured from real terminal output using original sample text; [image provenance](docs/product-images.md).
 
 ## Read a few pages first
 
-Requires [uv](https://docs.astral.sh/uv/getting-started/installation/) and Python 3.11+. Download and extract the source, or clone the project, then enter the directory containing `pyproject.toml`. Try the included original Chinese story:
+Requires [uv](https://docs.astral.sh/uv/getting-started/installation/) and Python 3.11+. Download and extract the source, or clone the project, then enter the directory containing `pyproject.toml`. Try the included original English story:
 
 ```sh
 git clone https://github.com/SitaoXie/modu-reader.git
 cd modu-reader
-uvx --from . modu --lang en --library ./test-artifacts/demo examples/first-pages.txt
+uvx --from . modu --lang en --library ./test-artifacts/demo examples/first-pages.en.txt
 ```
+
+For the Chinese example, use `examples/first-pages.txt` with `--lang zh`.
 
 Press **Space** to turn a page, **c** for chapters, **t** for themes, and **q** to save and quit. Repeat the command to resume. The demo uses its own library under `test-artifacts/demo`, leaving the default library alone. The first run installs dependencies; reading works offline afterward.
 
@@ -36,20 +42,23 @@ Press `i` to import your own book, or pass its path directly, for example `modu 
 
 If the shell cannot find the command, follow uv's instructions to run `uv tool update-shell`, then reopen your terminal. MODU itself does not edit shell configuration, themes, system preferences, or another tool's notification settings. Install from the official GitHub source. This project has not been published to PyPI; do not install an unrelated package with the same name.
 
-## Read beside Codex or your coding terminal
+## Read between tasks, keep development in view
 
-Use side-by-side windows or terminal panes: keep your development tool in one and run `modu` in the other. MODU runs in its own terminal and does not require access to your code repository.
+![Real project tests and MODU in adjacent terminal panes](docs/images/side-by-side.png)
 
-| When | How to use MODU |
+This is a real tmux session: project tests on the left, MODU on the right. Give the reader its own pane. Switch focus or press `q` to save and return to work.
+
+| Environment | Suggested workflow and basis |
 | --- | --- |
-| Waiting for Codex or another coding agent | Read in the adjacent terminal while the development tool's progress and prompts remain visible |
-| Waiting for builds, tests, or deployments | Keep the existing log pane visible beside a small reading terminal |
-| Working with a narrow pane | Press `c` to hide the sidebar; below 70 columns, chapters open as a modal list |
-| Returning to a task immediately | Press `q` to save and quit, then run `modu` later to resume |
+| VS Code | Split the integrated terminal: code or logs in one pane, `modu` in the other. [Official split-pane guide](https://code.visualstudio.com/docs/terminal/basics#_groups-split-panes) |
+| Claude Code, Codex, and other coding tools | Use an adjacent terminal or pane while the agent's progress and approval prompts stay visible. Claude Code documents terminal support; adjacent reading beside Codex has user confirmation. [Claude Code docs](https://code.claude.com/docs/en/overview) |
+| Shells, tests, and builds | Use side-by-side windows or a tmux split like the image above. An AI tool is optional. |
 
-Progress stays visible through the **side-by-side layout**. MODU is an independent reader: it does not read AI conversations, run agent tasks, or send completion alerts. Notification integration is a future possibility; you can keep using your development tool's existing notifications.
+These workflows need no dedicated integration. MODU does not read AI conversations or receive task-completion events; keep using your development tool's notifications. VS Code and Claude Code terminal capabilities were checked against official documentation; their native UIs have not each undergone MODU acceptance testing. [Environment checks and test scope](docs/terminal-environments.md)
 
-**Status: 1.2.0b6 open-source release candidate.** Locally validated on macOS, including user confirmation of right-rail alignment and hiding in the target embedded terminal. Windows/Linux code paths and CI definitions are included, but native terminal acceptance is pending. The same commands can be tried in Windows Terminal with PowerShell. Use a terminal with mouse and truecolor support. The interface supports English and Simplified Chinese; book text stays in its original language.
+Antigravity also documents a side-panel terminal. Its native interaction has not been tested here, so it is listed as “possible, untested,” rather than verified support. [Official documentation](https://antigravity.google/docs/features#integrated-terminal)
+
+**Status: 1.2.0b7 open-source release candidate.** Locally validated on macOS, including user confirmation of right-rail alignment and hiding in the target embedded terminal. Windows/Linux code paths and CI definitions are included, but native terminal acceptance is pending. The same commands can be tried in Windows Terminal with PowerShell. Use a terminal with mouse and truecolor support. The interface supports English and Simplified Chinese; book text stays in its original language.
 
 ## Interface language
 
@@ -142,14 +151,14 @@ uv run python tools/scan_secrets.py .
 Real POSIX terminal regression requires `tmux` on PATH:
 
 ```sh
-uv run python tests/acceptance_language.py --work ./test-artifacts/language
+uv run python tests/acceptance_language.py --book examples/first-pages.en.txt --work ./test-artifacts/language
 uv run python tests/acceptance_pty.py examples/river.txt --work ./test-artifacts/pty
 uv run python tests/acceptance_scrollbar.py --python .venv/bin/python --work ./test-artifacts/rail
 uv run python tests/acceptance_scrollbar.py --python .venv/bin/python --width-model narrow-punctuation --work ./test-artifacts/rail-narrow
 uv run python tests/acceptance_scrollbar.py --python .venv/bin/python --width-model wide-ambiguous --work ./test-artifacts/rail-wide
 ```
 
-Diagnostics exist only in the test driver. Their output is written under ignored `test-artifacts/` and must not be published as test material. Tests/examples use original project text only. No commercial books, private reading history, real chat transcripts, or personal terminal configuration are included.
+Diagnostics exist only in the test driver. Their output is written under ignored `test-artifacts/` and must not be published as test material. Bundled tests/examples use original project text only. No commercial books, private reading history, real chat transcripts, or personal terminal configuration are included.
 
 See [Contributing](CONTRIBUTING.md), [Security](SECURITY.md), [Release checklist](docs/release-checklist.md), and [Third-party notices](THIRD_PARTY_NOTICES.md).
 

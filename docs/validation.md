@@ -1,5 +1,36 @@
 # 实测记录 / Validation record
 
+## 1.2.0b7 — 英文全文与产品截图 / Full English text and product images
+
+2026-11-07。本地验收使用 O. Henry 的 *The Gift of the Magi*（《The Four Million》，1906）。[Project Gutenberg 书目](https://www.gutenberg.org/ebooks/2776)标注为美国公版；[原文来源](https://www.gutenberg.org/files/2776/2776-h/2776-h.htm)。验收提取该篇的 44 个段落，添加书名和作者行，共 2,068 个以空白分隔的词项、11,246 个原文字符。原文留在隔离测试目录，没有收入公开仓库或截图。
+
+归一化验收文件 SHA-256：`61e4593492a04322644360ea58b6ca722404019c8c8e4968c208908cd6816ad1`。
+
+| 实测 | 结果 |
+| --- | --- |
+| Python 3.11 / 3.14 | 各 87 项测试通过；发布图片篡改与未知图片拒绝测试通过 |
+| 110 列真实 tmux 终端 | 全文 9 页，逐行核对原文与内部空格；零重复、零漏字 |
+| 84 列独立 CLI / ANSI 解码 | 全文 13 页、9,134 个非空白字符；34 次语言切换、18 次缩放、八主题、续读通过 |
+| 60 列独立 CLI / ANSI 解码 | 全文 12 页、9,134 个非空白字符；32 次语言切换、18 次缩放、八主题、续读通过 |
+| 交互回归 | 25 次缩放、滚轮、右侧拖动、约两秒隐藏、搜索 Della、书签、目录和退出续读通过 |
+| 英文断行 | 旧版能复现 don’t / you’ll 等缩写从撇号处拆开；修复后 24/32/40/48/64/80 列整篇普通单词和缩写不被拆开 |
+| 中文回归 | 原创长文本 99 页、53,647 字符，零重复、零漏字；25 次缩放、八主题、滚轮、拖动、隐藏、搜索、书签、目录和续读通过 |
+| 发布检查 | Ruff、Bandit、独立密钥扫描与文件白名单通过；锁定的运行依赖未检出已知漏洞 |
+
+84 列会显示目录侧栏，60 列会隐藏侧栏，因此两种尺寸的正文有效宽度不同，页数不必随总窗口宽度单调变化。页码按当前实际正文区域重算。
+
+English: the complete public-domain short story was validated locally at 60, 84 and 110 columns. Real terminal coverage found no duplicated or omitted characters; a separate tmux check also compared internal spaces and source slices, with mouse, search, bookmarks, 25 resizes and resume. The old wrapper split apostrophe contractions; the fix keeps ordinary Latin words, contractions and accents intact while allowing tokens longer than a whole line to break. The 84-column viewport includes a sidebar, so its effective text width and page count differ from the 60-column viewport without one. The downloaded story is not bundled; see [original-sample product images](product-images.md) and [environment verification](terminal-environments.md).
+
+87 tests passed on each of Python 3.11 and 3.14. Chinese full-book regression also passed: 99 pages / 53,647 characters with no overlap or omission, 25 resizes and all eight themes. Ruff, Bandit, an independent secret scan and the release allowlist passed; the locked runtime dependencies had no known vulnerabilities reported by pip-audit at the time of this check. These are local results, not native Windows/Linux acceptance.
+
+The test command accepts a separately obtained local book / 可使用单独取得的本地书籍复现：
+
+```sh
+uv run python tests/acceptance_language.py --book /path/to/story.txt --columns 60 --work ./test-artifacts/english-60
+uv run python tests/acceptance_pty.py /path/to/story.txt --query Della --work ./test-artifacts/english-full
+```
+
+
 ## 1.2.0b6 — 双语界面与设置按钮 / Bilingual UI and settings button
 
 2026-11-07，macOS 本地验证。Python 3.11 / 3.14 各 75 项测试通过。

@@ -87,7 +87,7 @@ ENGLISH = {
     "正文宽度  ·  {cells} 列（约 {han} 个汉字）": "Text width · {cells} columns (~{han} CJK characters)",
     "离线阅读 · 字里行间": "Offline reading · A little room to read",
     "EN l": "中文 l",
-    "墨读 MODU · 中文离线终端阅读器": "MODU · Offline terminal ebook reader",
+    "墨读 MODU · 中英文离线终端阅读器": "MODU · Offline terminal ebook reader",
     "导入并打开 TXT / EPUB / PDF / Markdown（支持文件夹）": "Import and open TXT / EPUB / PDF / Markdown (folders supported)",
     "独立书库目录，亦可设置 MODU_HOME": "Separate library directory; also settable with MODU_HOME",
     "打开书架，不自动续读": "Open the bookshelf without resuming",

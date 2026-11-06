@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "modu-reader"
-version = "1.2.0b6"
-description = "MODU — an offline terminal ebook reader for reading beside your coding tools"
-keywords = ["terminal", "ebook-reader", "tui", "chinese", "txt", "epub", "pdf", "markdown", "offline", "textual"]
+version = "1.2.0b7"
+description = "MODU — a Chinese and English terminal ebook reader for reading while your code runs"
+keywords = ["terminal", "ebook-reader", "tui", "chinese", "english", "developer-tools", "txt", "epub", "pdf", "markdown", "offline", "textual"]
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]

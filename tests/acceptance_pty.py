@@ -19,6 +19,7 @@ import unicodedata
 p = argparse.ArgumentParser()
 p.add_argument("book", type=Path)
 p.add_argument("--work", type=Path, required=True)
+p.add_argument("--query", default="灯塔", help="A phrase present in the test book")
 args = p.parse_args()
 ROOT = args.work.resolve()
 ROOT.mkdir(parents=True, exist_ok=True)
@@ -188,7 +189,7 @@ try:
     # Reverse paging and resize from the middle, with no accumulated anchor drift.
     key("Home")
     wait(lambda x: x["anchor"] == 0)
-    for _ in range(35):
+    for _ in range(min(35, max(1, pages // 2))):
         old = state()["anchor"]
         key("Space")
         wait(lambda x: x["anchor"] != old)
@@ -256,7 +257,7 @@ try:
     assert "章节目录" in capture()
     key("/")
     wait(lambda x: x["modal"] == "SearchModal")
-    key("-l", "灯塔")
+    key("-l", args.query)
     time.sleep(0.5)
     (frames / "search.txt").write_text(capture(), encoding="utf-8")
     assert "个结果" in capture()

@@ -25,7 +25,7 @@ def main():
         return translate(language, text)
 
     parser = argparse.ArgumentParser(
-        prog="modu", description=tr("墨读 MODU · 中文离线终端阅读器"), allow_abbrev=False
+        prog="modu", description=tr("墨读 MODU · 中英文离线终端阅读器"), allow_abbrev=False
     )
     parser.add_argument(
         "files", nargs="*", help=tr("导入并打开 TXT / EPUB / PDF / Markdown（支持文件夹）")
