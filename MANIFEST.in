@@ -1,0 +1,12 @@
+include LICENSE README.md README.en.md pyproject.toml uv.lock .gitignore
+include CONTRIBUTING.md SECURITY.md THIRD_PARTY_NOTICES.md CHANGELOG.md
+recursive-include modu *.py *.tcss
+recursive-include tests *.py
+include tests/acceptance_pixels.cjs
+recursive-include tools *.py
+recursive-include docs *.md
+include examples/river.txt examples/first-pages.txt
+include .github/workflows/ci.yml
+global-exclude *.pyc *.pyo .DS_Store
+prune test-artifacts
+prune private-library
