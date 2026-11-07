@@ -1,5 +1,14 @@
 # 更新记录 / Changelog
 
+## 1.2.0b8 — 章节分页与光标修复 / Chapter pages and cursor recovery
+
+- 新增默认开启的「章节另起一页」设置：每章从新页开始，章末留白，页数按章节重算；关闭后恢复连续排版。设置按书库保存，切换和缩放保留原文位置。
+- 窗口切换与绘制前重新隐藏原生终端光标；无焦点通知时每 0.5 秒发送一次隐藏控制序列，不重绘正文。
+- 保留 Textual 输入框光标；暂停应用时停止守护，退出后恢复 shell 光标。
+- 增加独立真实 PTY 光标回归和使用者提供的中英文 Codex 桌面预览图。
+
+English: adds “New page per chapter”, enabled by default, with chapter-aware page counts, saved preferences and stable source positions. Turning it off restores continuous layout. Reasserts native-cursor hiding on focus changes and drawing, with a 0.5-second control-only fallback. Textual input carets remain usable; the guard stops while suspended and the shell cursor is restored on exit. Adds real-PTY regression and user-supplied Chinese/English desktop previews.
+
 ## 1.2.0b7 — 中英文阅读与真实产品图 / Chinese and English reading
 
 - 调整定位为中英文终端阅读器，面向等待代码、构建、测试或 AI 编程任务的碎片时间。根据官方资料区分终端能力与本项目实测范围。

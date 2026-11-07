@@ -134,9 +134,18 @@ def wrap(text: str, width: int) -> tuple[Line, ...]:
 class Layout:
     """Only wraps visited paragraphs. LRU bounded independently of book length."""
 
-    def __init__(self, doc: Document, width: int = 80, spacing: int = 1):
+    def __init__(self, doc: Document, width: int = 80, spacing: int = 1, chapter_breaks=False):
         self.doc, self.width, self.spacing = doc, width, spacing
+        self.chapter_breaks = chapter_breaks
+        self.chapter_blocks = [0] + [i for i, _ in doc.chapters if i > 0]
         self.cache: OrderedDict[tuple[int, int], tuple[Line, ...]] = OrderedDict()
+
+    def spacing_after(self, block: int) -> int:
+        if self.chapter_breaks and (
+            block == len(self.doc.blocks) - 1 or self.doc.blocks[block + 1].kind == "heading"
+        ):
+            return 0
+        return self.spacing
 
     def lines(self, block: int) -> tuple[Line, ...]:
         key = (block, self.width)
@@ -151,7 +160,7 @@ class Layout:
         b, offset = self.doc.locate(anchor)
         lines = self.lines(b)
         if offset >= len(self.doc.blocks[b].text) and b + 1 < len(self.doc.blocks):
-            return (b, len(lines)) if self.spacing else (b + 1, 0)
+            return (b, len(lines)) if self.spacing_after(b) else (b + 1, 0)
         r = max(0, bisect_right([x.start for x in lines], offset) - 1)
         return b, r
 
@@ -166,7 +175,7 @@ class Layout:
         b, r = pos
         for _ in range(abs(delta)):
             if delta > 0:
-                if r + 1 < len(self.lines(b)) + self.spacing:
+                if r + 1 < len(self.lines(b)) + self.spacing_after(b):
                     r += 1
                 elif b + 1 < len(self.doc.blocks):
                     b, r = b + 1, 0
@@ -177,7 +186,7 @@ class Layout:
                     r -= 1
                 elif b > 0:
                     b -= 1
-                    r = len(self.lines(b)) + self.spacing - 1
+                    r = len(self.lines(b)) + self.spacing_after(b) - 1
                 else:
                     break
         return b, r
@@ -186,6 +195,8 @@ class Layout:
         rows = []
         b, r = pos
         for _ in range(height):
+            if self.chapter_breaks and rows and r == 0 and self.doc.blocks[b].kind == "heading":
+                break
             ls = self.lines(b)
             if r < len(ls):
                 line = ls[r]
@@ -210,22 +221,61 @@ class PageIndex:
 
     starts: tuple[int, ...]
     total_rows: int
+    chapter_starts: tuple[int, ...] = ()
+    _chapter_page_cache: OrderedDict = field(default_factory=OrderedDict, compare=False, repr=False)
 
     @classmethod
-    def build(cls, document: Document, width: int, spacing: int, cancelled: Event):
+    def build(
+        cls, document: Document, width: int, spacing: int, cancelled: Event, chapter_breaks=False
+    ):
         starts = []
+        chapters = [0] if chapter_breaks else []
         total = 0
-        for block in document.blocks:
+        for i, block in enumerate(document.blocks):
             if cancelled.is_set():
                 return None
             starts.append(total)
-            total += len(wrap(block.text, width)) + spacing
+            if chapter_breaks and i > 0 and block.kind == "heading":
+                chapters.append(total)
+            gap = spacing if i + 1 < len(document.blocks) else 0
+            if (
+                chapter_breaks
+                and i + 1 < len(document.blocks)
+                and document.blocks[i + 1].kind == "heading"
+            ):
+                gap = 0
+            total += len(wrap(block.text, width)) + gap
         if cancelled.is_set():
             return None
-        return cls(tuple(starts), max(1, total - spacing))
+        return cls(tuple(starts), max(1, total), tuple(chapters))
+
+    def position_at_row(self, row: int) -> tuple[int, int]:
+        row = max(0, min(row, self.total_rows - 1))
+        block = max(0, bisect_right(self.starts, row) - 1)
+        return block, row - self.starts[block]
+
+    def chapter_pages(self, height):
+        if height not in self._chapter_page_cache:
+            offsets, total = [], 0
+            ends = (*self.chapter_starts[1:], self.total_rows)
+            for start, end in zip(self.chapter_starts, ends):
+                offsets.append(total)
+                total += max(1, (end - start + height - 1) // height)
+            self._chapter_page_cache[height] = (tuple(offsets), total)
+            if len(self._chapter_page_cache) > 3:
+                self._chapter_page_cache.popitem(last=False)
+        self._chapter_page_cache.move_to_end(height)
+        return self._chapter_page_cache[height]
 
     def pages(self, position: tuple[int, int], height: int) -> tuple[int, int]:
         height = max(1, height)
+        if self.chapter_starts:
+            block, row = position
+            offset = self.starts[block] + row
+            chapter = max(0, bisect_right(self.chapter_starts, offset) - 1)
+            page_offsets, total = self.chapter_pages(height)
+            current = page_offsets[chapter] + (offset - self.chapter_starts[chapter]) // height + 1
+            return min(current, total), total
         total = (self.total_rows + height - 1) // height
         block, row = position
         current = (self.starts[block] + row) // height + 1

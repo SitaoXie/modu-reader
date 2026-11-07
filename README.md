@@ -15,7 +15,7 @@ MODU 是面向中文和英文阅读的离线终端电子书阅读器，支持 TX
 
 ![中文阅读：纸笺主题和章节侧栏](docs/images/reading-chinese.png)
 
-中文纸笺主题。英文黑金主题见 [English README](README.en.md)。截图使用原创示例与真实终端输出，详见[截图说明](docs/product-images.md)。
+中文纸笺主题。英文黑金主题见 [English README](README.en.md)。上图使用原创示例与真实终端输出，详见[截图说明](docs/product-images.md)。
 
 ## 先读两页
 
@@ -44,6 +44,10 @@ modu
 
 ## 用碎片时间读书，保留开发进度
 
+![Codex 桌面应用旁的 MODU 中文阅读预览](docs/images/codex-desktop-zh.png)
+
+![Codex 桌面应用旁的 MODU 英文阅读预览](docs/images/codex-desktop-en.png)
+
 ![真实测试输出与 MODU 并排运行](docs/images/side-by-side.png)
 
 上图是 tmux 中真实的项目测试输出和 MODU。阅读器使用单独的终端窗格；需要处理开发任务时，切换焦点或按 `q` 保存退出。
@@ -58,7 +62,7 @@ modu
 
 Antigravity 官方文档也说明了侧栏终端，但本项目尚未完成其原生交互验收，暂列“可尝试、未实测”，不列为已验证支持。[官方说明](https://antigravity.google/docs/features#integrated-terminal)
 
-**状态：1.2.0b7 开源候选版。** macOS 已本地验证，包括用户在目标内置终端确认右侧轨道对齐和隐藏正常。Windows/Linux 提供跨平台代码和 CI 配置，原生终端体验尚未验收。Windows 可在 Windows Terminal + PowerShell 中尝试相同命令；需要支持鼠标和真彩色的终端。界面支持简体中文和英文；书籍正文保留原文。
+**状态：1.2.0b8 开源候选版。** macOS 已本地验证，包括用户在目标内置终端确认右侧轨道对齐和隐藏正常。Windows/Linux 提供跨平台代码和 CI 配置，原生终端体验尚未验收。Windows 可在 Windows Terminal + PowerShell 中尝试相同命令；需要支持鼠标和真彩色的终端。界面支持简体中文和英文；书籍正文保留原文。
 
 ## 界面语言
 
@@ -90,7 +94,8 @@ modu --library ./private-library
 - 左侧目录标记当前章节并显示章节进度；`c` 收起/展开。小于 70 列时改用弹出目录。
 - 滚轮、拖动右侧阅读轨道、键盘翻页；进度条静止约两秒隐藏，正文宽度保持不变。
 - 八款主题：墨夜黑金、纸笺、远山、旧书暖纸、竹影浅绿、晨雾灰白、石墨深灰、松夜暗绿；按 `t` 循环，按 `s` 直接选择。
-- 底部显示当前页 / 总页数，随窗口宽度、高度和段间距重算；长书在后台统计，不阻塞阅读。
+- **章节另起一页**默认开启：章末留白，下一章从新页开始；按 `s` 可关闭，选择自动保存。
+- 底部显示当前页 / 总页数，随窗口宽度、高度、段间距和章节分页设置重算；长书在后台统计，不阻塞阅读。
 - 原文字符锚点保持缩放和续读位置；阅读视口按需绘制，段落换行缓存最多 512 项，页数行索引最多保留三组。
 
 | 操作 | 快捷键 |
@@ -155,6 +160,8 @@ uv run python tools/scan_secrets.py .
 ```sh
 uv run python tests/acceptance_language.py --book examples/first-pages.en.txt --work ./test-artifacts/language
 uv run python tests/acceptance_pty.py examples/river.txt --work ./test-artifacts/pty
+uv run python tests/acceptance_cursor.py --work ./test-artifacts/cursor
+uv run python tests/acceptance_chapters.py --work ./test-artifacts/chapters
 uv run python tests/acceptance_scrollbar.py --python .venv/bin/python --work ./test-artifacts/rail
 uv run python tests/acceptance_scrollbar.py --python .venv/bin/python --width-model narrow-punctuation --work ./test-artifacts/rail-narrow
 uv run python tests/acceptance_scrollbar.py --python .venv/bin/python --width-model wide-ambiguous --work ./test-artifacts/rail-wide

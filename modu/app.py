@@ -241,6 +241,7 @@ class ModuApp(App):
         self.page_index_key = None
         self.page_index_cancel = Event()
         self.page_index_failed = None
+        self._terminal_cursor_guard_active = False
         for name, (bg, fg, accent, muted, panel, label) in PALETTES.items():
             self.register_theme(
                 Theme(
@@ -331,7 +332,36 @@ class ModuApp(App):
 
     def _display(self, screen, renderable):
         # Keep this serialization hook covered by actual PTY regression tests.
+        if renderable is not None:
+            self._hide_terminal_cursor(flush=False)
         super()._display(screen, anchor_update(renderable))
+
+    def _hide_terminal_cursor(self, *, flush=True):
+        # Textual draws Input carets itself. Its native terminal cursor is hidden
+        # only at startup, but some hosts reset DECTCEM when the pane regains focus.
+        if (
+            self._terminal_cursor_guard_active
+            and self._running
+            and not self._closed
+            and not self.is_headless
+            and self._driver is not None
+        ):
+            self._driver.write("\x1b[?25l")
+            if flush:
+                self._driver.flush()
+
+    def on_app_focus(self):
+        self._hide_terminal_cursor()
+
+    def on_app_blur(self):
+        self._hide_terminal_cursor()
+
+    def _pause_terminal_cursor_guard(self, _app):
+        self._terminal_cursor_guard_active = False
+
+    def _resume_terminal_cursor_guard(self, _app):
+        self._terminal_cursor_guard_active = True
+        self._hide_terminal_cursor()
 
     def compose(self):
         with Horizontal(id="brandbar"):
@@ -377,6 +407,12 @@ class ModuApp(App):
         yield Static("", id="notice")
 
     async def on_mount(self):
+        self._terminal_cursor_guard_active = True
+        self.app_suspend_signal.subscribe(self, self._pause_terminal_cursor_guard, immediate=True)
+        self.app_resume_signal.subscribe(self, self._resume_terminal_cursor_guard, immediate=True)
+        # Six control bytes twice a second, no repaint. Covers hosts that omit
+        # focus notifications or reset the cursor after delivering FocusIn.
+        self.set_interval(0.5, self._hide_terminal_cursor)
         self.query_one("#reading").display = False
         self.query_one("#notice").display = False
         self.query_one(DataTable).add_columns(
@@ -386,6 +422,7 @@ class ModuApp(App):
         reader.palette = self.theme
         reader.read_width = self.library.setting("read_width", 80)
         reader.paragraph_spacing = self.library.setting("spacing", 1)
+        reader.chapter_breaks = self.library.setting("chapter_breaks", True)
         self.refresh_shelf()
         self.sync_sidebar()
         self.set_interval(0.5, self.flush_position)
@@ -531,10 +568,11 @@ class ModuApp(App):
         if not self.doc or not self.reading:
             return
         reader = self.query_one(Reader)
-        key = (self.book_id, reader.body_width, reader.paragraph_spacing)
+        key = (self.book_id, reader.body_width, reader.paragraph_spacing, reader.chapter_breaks)
         label = self.query_one("#page-progress", Static)
         if key in self.page_indexes:
             self.page_indexes.move_to_end(key)
+            reader.page_index = self.page_indexes[key]
             current, total = self.page_indexes[key].pages(reader.pos, reader.body_height)
             label.update(self.tr("{p0} / {p1} 页", p0=current, p1=total))
         elif self.page_index_failed == key:
@@ -553,7 +591,9 @@ class ModuApp(App):
             # Debounce interactive resizing; counting never occupies the UI loop
             # or evicts paragraphs from the reader's wrap cache.
             await asyncio.sleep(0.15)
-            result = await asyncio.to_thread(PageIndex.build, document, key[1], key[2], cancelled)
+            result = await asyncio.to_thread(
+                PageIndex.build, document, key[1], key[2], cancelled, key[3]
+            )
             if result is not None and not cancelled.is_set():
                 self.page_indexes[key] = result
                 while len(self.page_indexes) > 3:
@@ -603,6 +643,7 @@ class ModuApp(App):
         self.exit()
 
     def on_unmount(self):
+        self._terminal_cursor_guard_active = False
         self.page_index_cancel.set()
         self.flush_position(force=True)
 
@@ -751,7 +792,16 @@ class ModuApp(App):
     def action_settings(self):
         if not self.unobstructed:
             return
-        options = [(self.tr("主题  ·  ") + self.tr(p[-1]), name) for name, p in PALETTES.items()]
+        enabled = self.query_one(Reader).chapter_breaks
+        options = [
+            (
+                self.tr("章节另起一页  ·  开启" if enabled else "章节另起一页  ·  关闭"),
+                "chapters:toggle",
+            )
+        ]
+        options.extend(
+            (self.tr("主题  ·  ") + self.tr(p[-1]), name) for name, p in PALETTES.items()
+        )
         options.extend(
             [
                 (
@@ -783,6 +833,10 @@ class ModuApp(App):
         reader = self.query_one(Reader)
         if result.startswith("language:"):
             self.set_language(result.split(":")[1])
+        elif result == "chapters:toggle":
+            reader.chapter_breaks = not reader.chapter_breaks
+            self.library.set_setting("chapter_breaks", reader.chapter_breaks)
+            reader.reflow()
         elif result.startswith("width:"):
             reader.read_width = int(result.split(":")[1])
             self.library.set_setting("read_width", reader.read_width)

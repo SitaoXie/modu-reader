@@ -32,6 +32,10 @@ Development tools are not included in the application wheel. pyte (LGPL-3.0) and
 
 Optional pixel regression uses separately installed `@xterm/xterm` 6.0.0 (MIT) and `playwright-core` 1.65.0 (Apache-2.0). Neither package nor a browser is bundled in the source archive or wheel, and neither is an application runtime dependency.
 
-产品图中的中英文短篇均为项目原创素材，英文文本译自项目自己的中文短篇，随 MIT 许可证提供。开发验收单独使用 O. Henry 的公版短篇，原文不随本仓库分发；来源与验证范围见 [实测记录](docs/validation.md)。截图工具复用上述可选 xterm.js/Playwright 开发依赖，不新增运行依赖。
+独立终端产品图中的中英文短篇均为项目原创素材，英文文本译自项目自己的中文短篇，随 MIT 许可证提供。开发验收单独使用 O. Henry 的公版短篇，原文不随本仓库分发；来源与验证范围见 [实测记录](docs/validation.md)。截图工具复用上述可选 xterm.js/Playwright 开发依赖，不新增运行依赖。
 
-Chinese/English product-image text is original project material; the English story translates the project's own Chinese example and is provided under MIT. Separate local acceptance used an O. Henry public-domain story without distributing it here; see the [validation record](docs/validation.md). Image tools reuse the optional xterm.js/Playwright development dependencies above and add no runtime dependency.
+Chinese/English text in the isolated-terminal product images is original project material; the English story translates the project's own Chinese example and is provided under MIT. Separate local acceptance used an O. Henry public-domain story without distributing it here; see the [validation record](docs/validation.md). Image tools reuse the optional xterm.js/Playwright development dependencies above and add no runtime dependency.
+
+使用者提供的桌面预览包含第三方应用界面与公版原文，不标为项目原创。
+
+User-supplied desktop previews include third-party application UI and public-domain text, not project-original material.

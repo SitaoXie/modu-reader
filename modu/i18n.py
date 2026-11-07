@@ -71,6 +71,8 @@ ENGLISH = {
     "主题  ·  ": "Theme · ",
     "段间留白  ·  舒展": "Paragraph spacing · Relaxed",
     "段间留白  ·  紧凑": "Paragraph spacing · Compact",
+    "章节另起一页  ·  开启": "New page per chapter · On",
+    "章节另起一页  ·  关闭": "New page per chapter · Off",
     "阅读设置": "Reading settings",
     "设置即时保存 · 字号请使用终端的字体缩放快捷键": "Saved immediately · Use your terminal shortcuts to change font size",
     "黑金 · 墨夜": "Ink night · Black & gold",

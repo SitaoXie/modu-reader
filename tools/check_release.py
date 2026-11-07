@@ -43,6 +43,8 @@ LIMIT = 8 * 1024 * 1024
 # Pin only screenshots reviewed for visible private data and PNG metadata.
 # Recapturing requires a fresh visual/metadata review before changing these hashes.
 REVIEWED_IMAGES = {
+    "docs/images/codex-desktop-zh.png": "96459cfa4621ee958ef6850525d6fcf3ba3d0f6ad3833263bdf957cf7d63fbb5",  # pragma: allowlist secret
+    "docs/images/codex-desktop-en.png": "6e451d266d070f1e51900a7397536ac1ba3ec46af2163276d454374b44c4cc31",  # pragma: allowlist secret
     "docs/images/reading-chinese.png": "0cab114c895645e1d88aa49a8b4a28bd5770b8a0f6d8bfb442e666d51558e875",  # pragma: allowlist secret
     "docs/images/reading-english.png": "efb16dd9d9045d51293b8db55a41fd1be0575b42cd92e11cd18e129b92fdb974",  # pragma: allowlist secret
     "docs/images/side-by-side.png": "78965f784389b610678b2b8d25d230a119b03c48e4185940eb8d9a5570bab821",  # pragma: allowlist secret

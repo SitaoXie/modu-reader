@@ -1,5 +1,34 @@
 # 实测记录 / Validation record
 
+## 1.2.0b8 — 章节分页与光标隐藏 / Chapter pages and cursor hiding
+
+2026-11-07。Python 3.11 / 3.14 各 106 项测试通过。
+
+- 默认开启「章节另起一页」；中英文设置在 42、59、70、84、110 列完整显示。开关按书库保存，切换和重启保留阅读位置。
+- 16 组排版回归覆盖开启/关闭、两种段间距、四组宽高，逐字符按顺序比较，检查短章节、连续标题、长标题和页数；滚轮跨章、反向翻页及边翻页边缩放另有回归。
+- 源码与实际安装命令 1.1.8 的独立真实 PTY 验收：4 章、7 页、2,511 个非空白字符，零重复、零遗漏；章首页首、五种设置宽度、开关保存和两次退出续读通过。
+- 实际安装命令英文短篇回归：9 页、3,504 个非空白字符，零重复、零遗漏；26 次语言切换、18 次缩放、八主题、四个弹窗和退出续读通过。
+
+English: 106 tests passed on each Python version. Chapter breaks default to on and are saved per library. Sixteen layout combinations check exact ordered source coverage and page counts, including short chapters, consecutive headings and long titles. UI regression covers wheel boundaries, reverse paging, resizing and both setting languages. Independent real-PTY acceptance passed for both source and installed 1.1.8: four chapters, seven pages and 2,511 non-whitespace characters with no duplication or loss; chapter starts, five settings widths, toggle persistence and resume passed.
+
+The installed-command English regression also passed: nine pages, 3,504 non-whitespace characters, no duplication or loss, 26 language changes, 18 resizes, eight themes, four dialogs and resume.
+
+### 原生光标 / Native cursor
+
+- 旧版负对照：独立终端解码器模拟宿主重置 DECTCEM、将原生光标设为可见后，应用收到 FocusOut 仍未恢复隐藏，测试失败。
+- 修复版真实 CLI PTY：12 轮 FocusOut/FocusIn、3 次无事件重置、搜索和导入输入框内的焦点切换均通过；共 31 次恢复。源码最长 0.449 秒，实际安装版最长 0.475 秒。
+- 加入章节分页后的本机 1.1.8 再次通过 31 次光标恢复，最长 0.453 秒。
+- 正文位置不变，两个输入框均可继续输入，退出后 shell 原生光标恢复。暂停、停止、关闭和无界面测试模式不抢占终端光标。
+- 独立 xterm.js 6.0.0 DOM 回放：31 次负对照光标确实可见；33 个恢复/输入帧均未绘制原生终端光标。
+- 使用者重启本机 1.1.7 后，在目标 Codex 桌面终端来回切换窗口，确认“已隐藏，切换窗口后正常”。宿主窗口未被自动化控制。
+
+English: An old-version control fails after the independent terminal decoder simulates the host resetting native-cursor visibility. Real PTY acceptance covers 12 focus cycles, three missing-event resets, two input dialogs, an unchanged reading anchor and cursor restoration on exit. The installed 1.1.7 build recovered within 0.475 seconds; 1.1.8 passed again within 0.453 seconds. A separate xterm.js DOM replay verifies 31 visible negative controls and 33 frames without a native cursor after recovery. The user also confirmed the fix in the actual desktop host after restarting local version 1.1.7.
+
+```sh
+uv run python tests/acceptance_cursor.py --work ./test-artifacts/cursor
+uv run python tests/acceptance_chapters.py --work ./test-artifacts/chapters
+```
+
 ## 1.2.0b7 — 英文全文与产品截图 / Full English text and product images
 
 2026-11-07。本地验收使用 O. Henry 的 *The Gift of the Magi*（《The Four Million》，1906）。[Project Gutenberg 书目](https://www.gutenberg.org/ebooks/2776)标注为美国公版；[原文来源](https://www.gutenberg.org/files/2776/2776-h/2776-h.htm)。验收提取该篇的 44 个段落，添加书名和作者行，共 2,068 个以空白分隔的词项、11,246 个原文字符。原文留在隔离测试目录，没有收入公开仓库或截图。

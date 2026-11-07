@@ -162,12 +162,12 @@ async def test_ui_resize_theme_search_bookmark_resume(library):
             assert reader.anchor == anchor
         await pilot.press("s")
         await pilot.pause(0.1)
-        await pilot.press(*(["down"] * len(PALETTES)), "enter")
+        await pilot.press(*(["down"] * (len(PALETTES) + 1)), "enter")
         await pilot.pause(0.1)
         assert reader.read_width == 64 and reader.anchor == anchor
         await pilot.press("s")
         await pilot.pause(0.1)
-        await pilot.press(*(["down"] * (len(PALETTES) + 4)), "enter")
+        await pilot.press(*(["down"] * (len(PALETTES) + 5)), "enter")
         await pilot.pause(0.1)
         assert reader.paragraph_spacing == 0 and reader.anchor == anchor
         await pilot.press("b")
@@ -387,7 +387,7 @@ async def test_live_page_count_resize_and_theme_persistence(library):
         reader = app.query_one(Reader)
 
         async def ready():
-            key = (identifier, reader.body_width, reader.paragraph_spacing)
+            key = (identifier, reader.body_width, reader.paragraph_spacing, reader.chapter_breaks)
             for _ in range(80):
                 if key in app.page_indexes:
                     return app.page_indexes[key]

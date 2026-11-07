@@ -1,6 +1,7 @@
 from __future__ import annotations
 import time
 from collections import deque
+from bisect import bisect_right
 import regex
 from rich.segment import Segment
 from rich.style import Style
@@ -40,6 +41,8 @@ class Reader(Widget, can_focus=True):
         self.rows = []
         self.read_width = 80
         self.paragraph_spacing = 1
+        self.chapter_breaks = True
+        self.page_index = None
         self.palette = "modu-gold"
         self.highlight = ""
         self.scrollbar_visible = False
@@ -67,7 +70,10 @@ class Reader(Widget, can_focus=True):
     def load(self, document, anchor=0):
         self.page_history.clear()
         self.doc = document
-        self.layout_engine = Layout(document, self.body_width, self.paragraph_spacing)
+        self.layout_engine = Layout(
+            document, self.body_width, self.paragraph_spacing, self.chapter_breaks
+        )
+        self.page_index = None
         self.anchor = max(0, min(anchor, len(document.text)))
         self.reflow()
         self.focus()
@@ -75,12 +81,14 @@ class Reader(Widget, can_focus=True):
     def reflow(self):
         if self.layout_engine is None:
             return
-        geometry = (self.body_width, self.body_height, self.paragraph_spacing)
+        geometry = (self.body_width, self.body_height, self.paragraph_spacing, self.chapter_breaks)
         if geometry != self.page_geometry:
             self.page_history.clear()
+            self.page_index = None
             self.page_geometry = geometry
         self.layout_engine.width = self.body_width
         self.layout_engine.spacing = self.paragraph_spacing
+        self.layout_engine.chapter_breaks = self.chapter_breaks
         self.pos = self.layout_engine.at(self.anchor)
         self.rebuild()
 
@@ -130,7 +138,22 @@ class Reader(Widget, can_focus=True):
             return
         if not page:
             self.page_history.clear()
-        self.pos = self.layout_engine.step(self.pos, delta)
+        target = self.layout_engine.step(self.pos, delta)
+        if self.chapter_breaks and not page:
+            # Wheel / line movement must visit a chapter boundary before moving
+            # past it, even if the preceding viewport contains only one line.
+            chapters = self.layout_engine.chapter_blocks
+            chapter = bisect_right(chapters, self.pos[0]) - 1
+            if delta > 0 and chapter + 1 < len(chapters):
+                target = min(target, (chapters[chapter + 1], 0))
+            elif delta < 0:
+                if self.pos == (chapters[chapter], 0):
+                    chapter = max(0, chapter - 1)
+                target = max(target, (chapters[chapter], 0))
+        self.set_position(target)
+
+    def set_position(self, position):
+        self.pos = position
         # Avoid a blank-only top row when paging to the last paragraph gap.
         b, r = self.pos
         if b == len(self.doc.blocks) - 1 and r >= len(self.layout_engine.lines(b)):
@@ -148,7 +171,25 @@ class Reader(Widget, can_focus=True):
             self.reflow()
             self.show_scrollbar()
             return
+        if direction < 0 and self.chapter_breaks:
+            chapters = self.layout_engine.chapter_blocks
+            chapter = bisect_right(chapters, self.pos[0]) - 1
+            target = self.layout_engine.step(self.pos, -height)
+            if self.pos == (chapters[chapter], 0) and chapter > 0:
+                if self.page_index is not None:
+                    start = self.page_index.starts[chapters[chapter - 1]]
+                    end = self.page_index.starts[chapters[chapter]]
+                    target = self.page_index.position_at_row(
+                        start + ((end - start - 1) // height) * height
+                    )
+                else:
+                    target = max(target, (chapters[chapter - 1], 0))
+            else:
+                target = max(target, (chapters[chapter], 0))
+            self.set_position(target)
+            return
         if direction > 0:
+            height = len(self.rows)
             following = self.layout_engine.step(self.pos, height)
             last_visible = self.layout_engine.step(self.pos, height - 1)
             block, row = following

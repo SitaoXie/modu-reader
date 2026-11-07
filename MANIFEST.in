@@ -12,3 +12,4 @@ include .github/workflows/ci.yml
 global-exclude *.pyc *.pyo .DS_Store
 prune test-artifacts
 prune private-library
+include docs/images/codex-desktop-zh.png docs/images/codex-desktop-en.png

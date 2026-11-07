@@ -15,7 +15,7 @@ MODU is an offline terminal ebook reader for Chinese and English, supporting TXT
 
 ![English reading in the black-and-gold theme](docs/images/reading-english.png)
 
-English text in the default black-and-gold theme. See the [Chinese README](README.md) for the light paper theme. Captured from real terminal output using original sample text; [image provenance](docs/product-images.md).
+English text in the default black-and-gold theme. See the [Chinese README](README.md) for the light paper theme. This image was captured from real terminal output using original sample text; [image provenance](docs/product-images.md).
 
 ## Read a few pages first
 
@@ -44,6 +44,10 @@ If the shell cannot find the command, follow uv's instructions to run `uv tool u
 
 ## Read between tasks, keep development in view
 
+![MODU reading English beside the Codex desktop app](docs/images/codex-desktop-en.png)
+
+![MODU reading Chinese beside the Codex desktop app](docs/images/codex-desktop-zh.png)
+
 ![Real project tests and MODU in adjacent terminal panes](docs/images/side-by-side.png)
 
 This is a real tmux session: project tests on the left, MODU on the right. Give the reader its own pane. Switch focus or press `q` to save and return to work.
@@ -58,7 +62,7 @@ These workflows need no dedicated integration. MODU does not read AI conversatio
 
 Antigravity also documents a side-panel terminal. Its native interaction has not been tested here, so it is listed as “possible, untested,” rather than verified support. [Official documentation](https://antigravity.google/docs/features#integrated-terminal)
 
-**Status: 1.2.0b7 open-source release candidate.** Locally validated on macOS, including user confirmation of right-rail alignment and hiding in the target embedded terminal. Windows/Linux code paths and CI definitions are included, but native terminal acceptance is pending. The same commands can be tried in Windows Terminal with PowerShell. Use a terminal with mouse and truecolor support. The interface supports English and Simplified Chinese; book text stays in its original language.
+**Status: 1.2.0b8 open-source release candidate.** Locally validated on macOS, including user confirmation of right-rail alignment and hiding in the target embedded terminal. Windows/Linux code paths and CI definitions are included, but native terminal acceptance is pending. The same commands can be tried in Windows Terminal with PowerShell. Use a terminal with mouse and truecolor support. The interface supports English and Simplified Chinese; book text stays in its original language.
 
 ## Interface language
 
@@ -88,7 +92,8 @@ modu --library ./private-library
 - Chapter sidebar with current-chapter marker and progress; press `c` to toggle it. Below 70 terminal columns it becomes a modal list.
 - Mouse wheel, a draggable reading rail on the right, and keyboard paging. The rail hides after about two idle seconds without changing text width.
 - Eight themes: black/gold, light paper, dark slate, warm sepia, pale green, light gray, graphite, and dark green. Press `t` to cycle or `s` to choose directly.
-- Current / total pages in the status bar, recalculated for window dimensions and paragraph spacing. Long books are counted in the background while reading remains available.
+- **New page per chapter** is on by default: leave the rest of the last page blank and start the next chapter at the top. Toggle it in settings (`s`); your choice is saved.
+- Current / total pages in the status bar, recalculated for window dimensions, paragraph spacing and chapter breaks. Long books are counted in the background while reading remains available.
 - Source-character anchors preserve position across resizing and restart. The viewport renders on demand, with at most 512 cached paragraph layouts and three page-count row indexes.
 
 | Action | Key |
@@ -153,6 +158,8 @@ Real POSIX terminal regression requires `tmux` on PATH:
 ```sh
 uv run python tests/acceptance_language.py --book examples/first-pages.en.txt --work ./test-artifacts/language
 uv run python tests/acceptance_pty.py examples/river.txt --work ./test-artifacts/pty
+uv run python tests/acceptance_cursor.py --work ./test-artifacts/cursor
+uv run python tests/acceptance_chapters.py --work ./test-artifacts/chapters
 uv run python tests/acceptance_scrollbar.py --python .venv/bin/python --work ./test-artifacts/rail
 uv run python tests/acceptance_scrollbar.py --python .venv/bin/python --width-model narrow-punctuation --work ./test-artifacts/rail-narrow
 uv run python tests/acceptance_scrollbar.py --python .venv/bin/python --width-model wide-ambiguous --work ./test-artifacts/rail-wide
