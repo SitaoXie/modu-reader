@@ -45,6 +45,10 @@ ModalScreen { align: center middle; background: $background 75%; }
 .dialog Input:focus { border: tall $primary; }
 .dialog-buttons { height: 3; align-horizontal: right; }
 #file-tree { height: 1fr; background: $background; }
+#import-dialog { height: 90%; max-height: 40; }
+#import-info { height: auto; max-height: 40%; margin-bottom: 1; background: $background; }
+#import-copy-note, #import-copy-path { height: auto; }
+#import-copy-path { color: $text-muted; margin-top: 1; }
 #help-dialog { height: auto; max-height: 94%; }
 #help-text { height: auto; margin-bottom: 1; }
 #confirm-book-dialog { height: auto; max-height: 90%; }

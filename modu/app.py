@@ -10,7 +10,7 @@ from textual import work, on
 from textual.app import App
 from textual.binding import Binding
 from textual.css.query import NoMatches
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.theme import Theme
 from textual.widgets import Button, DataTable, DirectoryTree, Input, Label, OptionList, Static
@@ -118,10 +118,19 @@ class ImportModal(LocalizedModal):
     def compose(self):
         with Vertical(classes="dialog", id="import-dialog"):
             yield Label(self.tr("把好书放进书架"), classes="dialog-title")
-            yield Static(
-                self.tr("TXT · EPUB · PDF · Markdown  /  支持文件或文件夹路径"),
-                classes="dialog-hint",
-            )
+            with VerticalScroll(id="import-info"):
+                yield Static(
+                    self.tr("TXT · EPUB · PDF · Markdown  /  支持文件或文件夹路径"),
+                    classes="dialog-hint",
+                )
+                yield Static(
+                    self.tr("导入会在书库创建独立副本。成功后，修改、移动或删除原文件均不影响阅读；不会自动同步。"),
+                    id="import-copy-note",
+                )
+                yield Static(
+                    Text(self.tr("副本保存目录：{path}", path=str(self.app.library.root / "originals"))),
+                    id="import-copy-path",
+                )
             yield Input(placeholder=self.tr("粘贴路径，或从下方选择文件"), id="path")
             yield FileTree(str(Path.home()), id="file-tree")
             with Horizontal(classes="dialog-buttons"):

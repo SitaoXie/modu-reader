@@ -35,6 +35,8 @@ ENGLISH = {
     "↑ ↓ 选择 · Enter 确认 · Esc 返回": "↑ ↓ Select · Enter Confirm · Esc Back",
     "返回  Esc": "Back  Esc",
     "把好书放进书架": "Add books to your shelf",
+    "导入会在书库创建独立副本。成功后，修改、移动或删除原文件均不影响阅读；不会自动同步。": "Import creates an independent library copy. After a successful import, editing, moving or deleting the original won't affect reading. Changes are not synced.",
+    "副本保存目录：{path}": "Library copies are saved in: {path}",
     "TXT · EPUB · PDF · Markdown  /  支持文件或文件夹路径": "TXT · EPUB · PDF · Markdown / File or folder paths",
     "粘贴路径，或从下方选择文件": "Paste a path, or choose a file below",
     "导入": "Import",

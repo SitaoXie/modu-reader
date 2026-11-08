@@ -1,5 +1,13 @@
 # 更新记录 / Changelog
 
+## 1.2.0b10 — 导入副本说明 / Import copy information
+
+- 中英文导入窗口和命令行明确说明：导入创建独立副本，成功后修改、移动或删除原文件均不影响阅读，后续更改不会自动同步。
+- 显示当前书库的实际副本目录，支持自定义书库。窄窗口可滚动查看完整说明与长路径，输入框和操作按钮保持可见。
+- 验证原文件修改、移动和删除后仍可阅读，并覆盖移除缓存后从书库副本重建的情况。
+
+English: import dialogs and CLI output explain independent library copies, display the active storage directory and clarify that later source changes are not synced. Narrow dialogs keep input and buttons accessible while longer notes and paths can scroll. Regression verifies reading after source edits, moves or deletion, including cache rebuilds from the library copy.
+
 ## 1.2.0b9 — 书架管理与终端交互修复 / Library management and terminal interaction
 
 - 书架新增归档、恢复和删除；操作需二次确认，默认选中取消。归档保留书签和进度；删除只移除书库副本、缓存及阅读记录，保留原始导入文件。旧书库自动升级。

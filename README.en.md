@@ -62,7 +62,7 @@ These workflows need no dedicated integration. MODU does not read AI conversatio
 
 Antigravity also documents a side-panel terminal. Its native interaction has not been tested here, so it is listed as “possible, untested,” rather than verified support. [Official documentation](https://antigravity.google/docs/features#integrated-terminal)
 
-**Status: 1.2.0b9 open-source release candidate.** Locally validated on macOS, including user confirmation of right-rail alignment and hiding in the target embedded terminal. Windows/Linux code paths and CI definitions are included, but native terminal acceptance is pending. The same commands can be tried in Windows Terminal with PowerShell. Use a terminal with mouse and truecolor support. The interface supports English and Simplified Chinese; book text stays in its original language.
+**Status: 1.2.0b10 open-source release candidate.** Locally validated on macOS, including user confirmation of right-rail alignment and hiding in the target embedded terminal. Windows/Linux code paths and CI definitions are included, but native terminal acceptance is pending. The same commands can be tried in Windows Terminal with PowerShell. Use a terminal with mouse and truecolor support. The interface supports English and Simplified Chinese; book text stays in its original language.
 
 ## Interface language
 
@@ -87,7 +87,7 @@ modu --library ./private-library
 
 ## Reading features
 
-- Import local TXT, EPUB, PDF, and Markdown files. Originals are copied into the library and are never modified.
+- Import local TXT, EPUB, PDF, and Markdown files as independent library copies, with their storage directory shown during import. After a successful import, editing, moving or deleting the original does not affect reading; source changes are not synced.
 - Bookshelf, table of contents, full-text search, bookmarks, and automatic resume.
 - Archive, restore or delete books from the shelf, with confirmation. Archives retain bookmarks and progress. Deletion removes library copies and reading data while keeping the original imported file.
 - Chapter sidebar with current-chapter marker and progress; press `c` to toggle it. Below 70 terminal columns it becomes a modal list.

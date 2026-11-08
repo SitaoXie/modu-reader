@@ -48,6 +48,9 @@ def main():
     if args.lang:
         library.set_setting("language", language)
     target, failures = None, []
+    if args.files:
+        print(tr("导入会在书库创建独立副本。成功后，修改、移动或删除原文件均不影响阅读；不会自动同步。"))
+        print(translate(language, "副本保存目录：{path}", path=clean(str(library.root / "originals"))))
     for raw in args.files:
         path = Path(raw).expanduser()
         try:

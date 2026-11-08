@@ -1,5 +1,16 @@
 # 实测记录 / Validation record
 
+## 1.2.0b10 — 导入副本说明 / Import copy information
+
+2026-11-08，macOS 本地验证。Python 3.11 / 3.14 各 139 项测试通过；实际安装版 1.1.11 的 11 项专项测试通过。
+
+- 分别修改、移动和删除原始文件，确认书库内容、书签和进度保持不变；再删除解析缓存、重新打开书库，仍能从独立副本读取原文。
+- 中英文命令行显示实际副本目录；仅列出书架时不增加导入提示。
+- 中英文导入窗口覆盖 42×24、70×30、110×36，含中文、方括号和长目录名。说明与路径可滚动，输入框和导入/取消按钮保持可见。
+- 安装版另以真实 CLI PTY 与独立 xterm.js DOM 验证上述六组语言/尺寸，使用终端鼠标滚轮访问长路径；未自动操作宿主窗口。所有书籍与截图均留在隔离测试目录。
+
+English: 139 tests passed on each of Python 3.11 and 3.14; installed 1.1.11 passed 11 focused tests. Editing, moving or deleting the source leaves the library text, bookmarks and position intact, even after removing the parsed cache and reopening the library. CLI notices show the active copy directory. Chinese/English import dialogs keep controls visible at 42×24, 70×30 and 110×36, including long paths with CJK and brackets. The installed CLI also passed real-PTY/xterm.js checks for all six language/size combinations, including wheel access to long paths. No host window was automated, and test artifacts remain local.
+
 ## 1.2.0b9 — 书架管理与终端交互 / Library management and terminal interaction
 
 2026-11-08，macOS 本地验证。Python 3.11 / 3.14 各 128 项测试通过。
