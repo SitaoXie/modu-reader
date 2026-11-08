@@ -3,6 +3,7 @@ import asyncio
 from collections import OrderedDict
 from pathlib import Path
 import shlex
+import sqlite3
 from threading import Event
 from rich.text import Text
 from textual import work, on
@@ -19,6 +20,7 @@ from .safety import import_paths
 from .model import clean, PageIndex
 from .terminal_render import anchor_update
 from .reader import Reader, ReaderRail
+from .scrollbars import SolidScrollBarRender
 from .themes import PALETTES, LIGHT_PALETTES
 from .i18n import translate, normalize_language, message
 
@@ -26,6 +28,16 @@ from .i18n import translate, normalize_language, message
 class LocalizedModal(ModalScreen):
     def tr(self, text, **values):
         return self.app.tr(text, **values)
+
+
+class ChapterList(OptionList):
+    def on_resize(self):
+        # The list's own Resize arrives after the app's Resize, once its new
+        # viewport and scroll limits are available.
+        self.call_after_refresh(self.app.follow_current_chapter)
+
+    def on_show(self):
+        self.call_after_refresh(self.app.follow_current_chapter)
 
 
 class ChoiceModal(LocalizedModal):
@@ -54,6 +66,41 @@ class ChoiceModal(LocalizedModal):
     @on(Button.Pressed, "#close")
     def close(self):
         self.dismiss(None)
+
+
+class ConfirmBookModal(LocalizedModal):
+    BINDINGS = [("escape", "cancel", "取消")]
+
+    def __init__(self, action, title):
+        super().__init__()
+        self.book_action, self.book_title = action, title
+
+    def compose(self):
+        headings = {"archive": "归档这本书？", "restore": "恢复这本书？", "delete": "删除这本书？"}
+        descriptions = {
+            "archive": "书籍移入归档，正文、书签和阅读进度保留，可随时恢复。",
+            "restore": "书籍移回书架，继续保留书签和阅读进度。",
+            "delete": "将删除书库副本、缓存、书签和阅读进度，无法撤销。最初导入的原始文件不会删除。",
+        }
+        labels = {"archive": "确认归档", "restore": "确认恢复", "delete": "确认删除"}
+        with Vertical(classes="dialog", id="confirm-book-dialog"):
+            yield Label(self.tr(headings[self.book_action]), classes="dialog-title")
+            yield Static(Text(self.book_title, style="bold"), id="confirm-book-title")
+            yield Static(self.tr(descriptions[self.book_action]), id="confirm-book-description")
+            with Horizontal(classes="dialog-buttons"):
+                yield Button(self.tr("取消"), id="cancel-book")
+                yield Button(self.tr(labels[self.book_action]), id="confirm-book")
+
+    def on_mount(self):
+        self.query_one("#cancel-book", Button).focus()
+
+    def action_cancel(self):
+        self.dismiss(False)
+
+    @on(Button.Pressed)
+    def choose(self, event):
+        event.stop()
+        self.dismiss(event.button.id == "confirm-book")
 
 
 class FileTree(DirectoryTree):
@@ -219,6 +266,9 @@ class ModuApp(App):
         Binding("l", "language", "Language / 语言"),
         Binding("n", "chapter(1)", "下一章"),
         Binding("p", "chapter(-1)", "上一章"),
+        Binding("a", "archive_book", "归档/恢复"),
+        Binding("d", "delete_book", "删除书籍"),
+        Binding("v", "archive_view", "归档书架"),
         Binding("question_mark", "help", "帮助"),
     ]
 
@@ -237,11 +287,12 @@ class ModuApp(App):
         self.importing = False
         self.sidebar_open = self.library.setting("sidebar_open", True)
         self.current_chapter_index = -1
+        self.show_archived = False
         self.page_indexes = OrderedDict()
         self.page_index_key = None
         self.page_index_cancel = Event()
         self.page_index_failed = None
-        self._terminal_cursor_guard_active = False
+        self._terminal_guard_active = False
         for name, (bg, fg, accent, muted, panel, label) in PALETTES.items():
             self.register_theme(
                 Theme(
@@ -336,32 +387,62 @@ class ModuApp(App):
             self._hide_terminal_cursor(flush=False)
         super()._display(screen, anchor_update(renderable))
 
-    def _hide_terminal_cursor(self, *, flush=True):
-        # Textual draws Input carets itself. Its native terminal cursor is hidden
-        # only at startup, but some hosts reset DECTCEM when the pane regains focus.
-        if (
-            self._terminal_cursor_guard_active
+    def _terminal_guard_ready(self):
+        return (
+            self._terminal_guard_active
             and self._running
             and not self._closed
             and not self.is_headless
             and self._driver is not None
-        ):
+        )
+
+    def _hide_terminal_cursor(self, *, flush=True):
+        # Textual draws Input carets itself; the native cursor stays hidden.
+        if self._terminal_guard_ready():
             self._driver.write("\x1b[?25l")
             if flush:
                 self._driver.flush()
 
+    def _restore_terminal_modes(self):
+        if not self._terminal_guard_ready():
+            return
+        # A host may reset mouse AND focus reporting when switching panes, so
+        # FocusIn alone cannot recover it. Reassert modes without repainting.
+        # Do not re-enable 1004 here: xterm replies with FocusIn/Out on every
+        # enable, which would form a feedback loop and interrupt held drags.
+        sequence = "\x1b[?25l"
+        if self._driver._mouse:
+            # Reassert ANY directly: toggling through VT200 would temporarily
+            # remove drag listeners. Keep a negotiated pixel encoding intact.
+            encoding = 1016 if getattr(self._driver, "_mouse_pixels", False) else 1006
+            sequence += f"\x1b[?1003h\x1b[?{encoding}h"
+        self._driver.write(sequence)
+        self._driver.flush()
+
+    def _release_interrupted_mouse(self):
+        # Focus may leave before MouseUp reaches the app. Do not let an old
+        # capture route all subsequent clicks to the reading rail.
+        captured = self.mouse_captured
+        self.capture_mouse(None)
+        self._mouse_down_widget = None
+        if isinstance(captured, ReaderRail):
+            captured.reader.dragging = False
+
     def on_app_focus(self):
-        self._hide_terminal_cursor()
+        self._release_interrupted_mouse()
+        self._restore_terminal_modes()
 
     def on_app_blur(self):
+        self._release_interrupted_mouse()
         self._hide_terminal_cursor()
 
-    def _pause_terminal_cursor_guard(self, _app):
-        self._terminal_cursor_guard_active = False
+    def _pause_terminal_guard(self, _app):
+        self._terminal_guard_active = False
+        self._release_interrupted_mouse()
 
-    def _resume_terminal_cursor_guard(self, _app):
-        self._terminal_cursor_guard_active = True
-        self._hide_terminal_cursor()
+    def _resume_terminal_guard(self, _app):
+        self._terminal_guard_active = True
+        self._restore_terminal_modes()
 
     def compose(self):
         with Horizontal(id="brandbar"):
@@ -374,6 +455,10 @@ class ModuApp(App):
         with Vertical(id="shelf"):
             yield Static(self.tr("[bold]我的书架[/]"), id="shelf-title")
             yield Static(self.tr("一本书，一段属于自己的时间。"), id="shelf-caption")
+            with Horizontal(id="shelf-actions"):
+                yield Button(self.tr("归档 a"), id="archive-book")
+                yield Button(self.tr("删除 d"), id="delete-book")
+                yield Button(self.tr("已归档 v"), id="archive-view")
             yield DataTable(id="books", cursor_type="row", zebra_stripes=True)
             yield Static(
                 self.tr(
@@ -396,7 +481,7 @@ class ModuApp(App):
                 with Vertical(id="toc-sidebar"):
                     yield Static(self.tr("章节目录"), id="toc-heading")
                     yield Static("", id="chapter-progress")
-                    yield OptionList(id="toc-list")
+                    yield ChapterList(id="toc-list")
                     yield Static(self.tr("Enter 跳转 · c 收起"), id="toc-hint")
                 yield reader
                 yield ReaderRail(reader, id="reader-rail")
@@ -407,14 +492,14 @@ class ModuApp(App):
         yield Static("", id="notice")
 
     async def on_mount(self):
-        self._terminal_cursor_guard_active = True
-        self.app_suspend_signal.subscribe(self, self._pause_terminal_cursor_guard, immediate=True)
-        self.app_resume_signal.subscribe(self, self._resume_terminal_cursor_guard, immediate=True)
-        # Six control bytes twice a second, no repaint. Covers hosts that omit
-        # focus notifications or reset the cursor after delivering FocusIn.
-        self.set_interval(0.5, self._hide_terminal_cursor)
+        self._terminal_guard_active = True
+        self.app_suspend_signal.subscribe(self, self._pause_terminal_guard, immediate=True)
+        self.app_resume_signal.subscribe(self, self._resume_terminal_guard, immediate=True)
+        # Control sequences only, no repaint; also covers missing focus events.
+        self.set_interval(0.5, self._restore_terminal_modes)
         self.query_one("#reading").display = False
         self.query_one("#notice").display = False
+        self.query_one("#toc-list", OptionList).vertical_scrollbar.renderer = SolidScrollBarRender
         self.query_one(DataTable).add_columns(
             self.tr("书名"), self.tr("作者"), self.tr("格式"), self.tr("进度")
         )
@@ -429,7 +514,8 @@ class ModuApp(App):
         target = self.start_book or (
             None if self.start_shelf else self.library.setting("last_book")
         )
-        if target and self.library.book(target):
+        book = self.library.book(target) if target else None
+        if book and (self.start_book or not book["archived"]):
             self.open_book(target)
         else:
             self.query_one(DataTable).focus()
@@ -444,8 +530,9 @@ class ModuApp(App):
 
     def refresh_shelf(self):
         table = self.query_one(DataTable)
+        cursor = table.cursor_row
         table.clear()
-        for book in self.library.books():
+        for book in self.library.books(archived=self.show_archived):
             progress = book["position"] / max(1, book["chars"])
             table.add_row(
                 Text(book["title"]),
@@ -455,10 +542,95 @@ class ModuApp(App):
                 key=book["id"],
             )
         self.query_one("#empty").display = table.row_count == 0
+        self.query_one("#empty", Static).update(
+            self.tr("还没有归档的书籍。")
+            if self.show_archived
+            else self.tr(
+                "按 i 导入本地书籍，或在终端输入 modu 文件路径\n支持 TXT、EPUB、PDF、Markdown · 所有内容只保存在本机"
+            )
+        )
         table.display = table.row_count > 0
+        if table.row_count:
+            table.move_cursor(row=min(cursor, table.row_count - 1))
+        self.query_one("#shelf-title", Static).update(
+            self.tr("[bold]已归档[/]" if self.show_archived else "[bold]我的书架[/]")
+        )
+        for identity, label in {
+            "archive-book": "恢复 a" if self.show_archived else "归档 a",
+            "delete-book": "删除 d",
+            "archive-view": "书架 v" if self.show_archived else "已归档 v",
+        }.items():
+            button = self.query_one("#" + identity, Button)
+            button.label = self.tr(label)
+            button.refresh(layout=True)
+            if identity != "archive-view":
+                button.disabled = not table.row_count
         self.query_one("#shelf-caption", Static).update(
             self.tr("{p0} 本藏书  ·  一本书，一段属于自己的时间。", p0=table.row_count)
         )
+
+    def action_archive_view(self):
+        if self.unobstructed and not self.reading and not self.loading_book:
+            self.show_archived = not self.show_archived
+            self.refresh_shelf()
+            self.query_one(DataTable).focus()
+
+    def action_archive_book(self):
+        self.confirm_book_action("restore" if self.show_archived else "archive")
+
+    def action_delete_book(self):
+        self.confirm_book_action("delete")
+
+    def confirm_book_action(self, action):
+        if not self.unobstructed or self.reading or self.loading_book or self.importing:
+            return
+        table = self.query_one(DataTable)
+        if not table.row_count:
+            return
+        key = table.coordinate_to_cell_key(table.cursor_coordinate).row_key.value
+        book = self.library.book(key)
+        if book:
+            self.push_screen(
+                ConfirmBookModal(action, book["title"]),
+                lambda confirmed: self.finish_book_action(key, action, confirmed),
+            )
+
+    def finish_book_action(self, book_id, action, confirmed):
+        if not confirmed:
+            self.query_one(DataTable).focus()
+            return
+        try:
+            self.flush_position(force=True)
+            if action == "delete":
+                self.library.delete_book(book_id)
+            else:
+                self.library.archive_book(book_id, action == "archive")
+            if self.book_id == book_id:
+                self.page_index_cancel.set()
+                self.page_index_key = self.page_index_failed = None
+                self.book_id = self.doc = None
+                self.pending_save = False
+                reader = self.query_one(Reader)
+                reader.doc = reader.layout_engine = reader.page_index = None
+                reader.rows = []
+                reader.page_history.clear()
+                self.query_one("#toc-list", OptionList).clear_options()
+            self.page_indexes = OrderedDict(
+                (key, value) for key, value in self.page_indexes.items() if key[0] != book_id
+            )
+            self.refresh_shelf()
+            self.notice(
+                self.tr(
+                    {
+                        "archive": "已归档，可在已归档书架恢复。",
+                        "restore": "已恢复到书架。",
+                        "delete": "已删除书库副本和阅读记录。",
+                    }[action]
+                )
+            )
+        except (OSError, ValueError, sqlite3.Error) as error:
+            self.notice(self.tr("操作失败：{p0}", p0=message(self.language, clean(str(error)))), 6)
+        self.query_one(DataTable).focus()
 
     @on(DataTable.RowSelected)
     def selected(self, event):
@@ -643,7 +815,7 @@ class ModuApp(App):
         self.exit()
 
     def on_unmount(self):
-        self._terminal_cursor_guard_active = False
+        self._terminal_guard_active = False
         self.page_index_cancel.set()
         self.flush_position(force=True)
 
@@ -699,6 +871,12 @@ class ModuApp(App):
     def sync_sidebar(self, width=None):
         sidebar = self.query_one("#toc-sidebar")
         sidebar.display = self.sidebar_open and (self.size.width if width is None else width) >= 70
+
+    def follow_current_chapter(self):
+        if self.reading and self.current_chapter_index >= 0:
+            toc = self.query_one("#toc-list", OptionList)
+            toc.highlighted = self.current_chapter_index
+            toc.scroll_to_highlight()
 
     def action_toc(self):
         if self.reading and self.unobstructed:
@@ -856,9 +1034,13 @@ class ModuApp(App):
     async def button_action(self, event):
         if isinstance(self.screen, ModalScreen):
             return
-        action = {"shelf-button": "shelf", "theme-cycle": "theme_cycle"}.get(
-            event.button.id, event.button.id
-        )
+        action = {
+            "shelf-button": "shelf",
+            "theme-cycle": "theme_cycle",
+            "archive-book": "archive_book",
+            "delete-book": "delete_book",
+            "archive-view": "archive_view",
+        }.get(event.button.id, event.button.id)
         if action:
             await self.run_action(action)
             if self.reading and self.unobstructed:

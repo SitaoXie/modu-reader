@@ -83,6 +83,10 @@ class Library:
                     PRIMARY KEY(book_id, position));
                 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
             """)
+            conn.execute("BEGIN IMMEDIATE")
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(books)")}
+            if "archived" not in columns:
+                conn.execute("ALTER TABLE books ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
         if os.name == "posix":
             self.db.chmod(0o600)
 
@@ -96,11 +100,63 @@ class Library:
         finally:
             conn.close()
 
-    def books(self):
+    def books(self, archived=False):
         with self.connect() as c:
             return [
-                dict(r) for r in c.execute("SELECT * FROM books ORDER BY opened DESC, added DESC")
+                dict(r)
+                for r in c.execute(
+                    "SELECT * FROM books WHERE archived=? ORDER BY opened DESC, added DESC",
+                    (int(archived),),
+                )
             ]
+
+    def archive_book(self, book_id, archived=True):
+        validate_book_id(book_id)
+        with self.connect() as c:
+            c.execute("UPDATE books SET archived=? WHERE id=?", (int(archived), book_id))
+            if archived:
+                c.execute(
+                    "DELETE FROM settings WHERE key='last_book' AND value=?", (json.dumps(book_id),)
+                )
+
+    def delete_book(self, book_id):
+        """Remove only content-addressed library copies; never follow DB source paths."""
+        validate_book_id(book_id)
+        moved = []
+        with tempfile.TemporaryDirectory(prefix=".delete-", dir=self.root) as temporary:
+            try:
+                with self.connect() as c:
+                    c.execute("BEGIN IMMEDIATE")
+                    book = c.execute("SELECT format FROM books WHERE id=?", (book_id,)).fetchone()
+                    if book is None:
+                        return
+                    extension = "." + book["format"].lower()
+                    if extension not in SUPPORTED:
+                        raise ValueError("书籍格式无效。")
+                    paths = [
+                        self.root / "originals" / f"{book_id}{extension}",
+                        self.root / "cache" / f"{book_id}.json.z",
+                    ]
+                    for path in paths:
+                        if path.parent.is_symlink() or path.is_symlink():
+                            raise ValueError("书库子目录或文件不能是符号链接。")
+                        if path.exists() and not path.is_file():
+                            raise ValueError("书库副本路径无效。")
+                    for path in paths:
+                        if path.exists():
+                            staged = Path(temporary) / path.name
+                            os.replace(path, staged)
+                            moved.append((path, staged))
+                    c.execute("DELETE FROM bookmarks WHERE book_id=?", (book_id,))
+                    c.execute("DELETE FROM books WHERE id=?", (book_id,))
+                    c.execute(
+                        "DELETE FROM settings WHERE key='last_book' AND value=?",
+                        (json.dumps(book_id),),
+                    )
+            except Exception:
+                for path, staged in reversed(moved):
+                    os.replace(staged, path)
+                raise
 
     def book(self, book_id):
         with self.connect() as c:
@@ -199,10 +255,15 @@ class Library:
 
     def save_position(self, book_id, position):
         with self.connect() as c:
-            c.execute(
+            updated = c.execute(
                 "UPDATE books SET position=?,opened=? WHERE id=?",
                 (int(position), time.time(), book_id),
             )
+            if (
+                not updated.rowcount
+                or c.execute("SELECT archived FROM books WHERE id=?", (book_id,)).fetchone()[0]
+            ):
+                return
             c.execute(
                 "INSERT OR REPLACE INTO settings VALUES ('last_book',?)", (json.dumps(book_id),)
             )
@@ -218,6 +279,8 @@ class Library:
 
     def toggle_bookmark(self, book_id, position, label):
         with self.connect() as c:
+            if not c.execute("SELECT 1 FROM books WHERE id=?", (book_id,)).fetchone():
+                return False
             existing = c.execute(
                 "SELECT 1 FROM bookmarks WHERE book_id=? AND position=?", (book_id, position)
             ).fetchone()

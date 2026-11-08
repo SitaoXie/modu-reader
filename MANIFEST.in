@@ -3,6 +3,7 @@ include CONTRIBUTING.md SECURITY.md THIRD_PARTY_NOTICES.md CHANGELOG.md
 recursive-include modu *.py *.tcss
 recursive-include tests *.py
 include tests/acceptance_pixels.cjs
+include tests/acceptance_mouse.cjs
 recursive-include tools *.py
 recursive-include docs *.md
 include examples/river.txt examples/first-pages.txt examples/first-pages.en.txt

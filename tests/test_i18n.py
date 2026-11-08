@@ -203,7 +203,7 @@ async def test_language_switch_remeasures_every_toolbar_button(book_library):
                 await pilot.press("l")
                 await pilot.pause(0.1)
                 for button in app.query(Button):
-                    if not button.display:
+                    if not button.display or not button.region:
                         continue
                     lines = [
                         line.text.strip()

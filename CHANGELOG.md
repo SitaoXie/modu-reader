@@ -1,5 +1,15 @@
 # 更新记录 / Changelog
 
+## 1.2.0b9 — 书架管理与终端交互修复 / Library management and terminal interaction
+
+- 书架新增归档、恢复和删除；操作需二次确认，默认选中取消。归档保留书签和进度；删除只移除书库副本、缓存及阅读记录，保留原始导入文件。旧书库自动升级。
+- 目录滑块改用整格背景色，消除细分方块字形造成的接缝；缩放或重新展开目录后保持当前章节可见。
+- 窗口重新获得焦点时恢复鼠标上报；每 0.5 秒补充恢复，覆盖宿主同时丢失焦点通知的情况，不重绘正文。
+- 保留鼠标禁用选项和已协商的像素坐标模式，长按拖动不中断；失焦时释放未完成的拖动，避免滑块继续捕获按钮点击。
+- 新增真实 CLI PTY 与独立 xterm.js DOM 的实时交互回归，由终端实际产生滚轮、点击和拖动事件；旧版在相同模式重置后无法恢复。
+
+English: adds archive, restore and delete actions with confirmation and Cancel selected by default. Archives retain bookmarks and progress; deletion removes only library copies, caches and reading data, preserving original imports. Existing libraries migrate automatically. TOC scrollbars use solid cells to avoid fractional-glyph seams, and the current chapter stays visible after resizing. Restores mouse reporting on focus and every 0.5 seconds without repainting, including missing-focus cases; preserves held drags and releases interrupted capture. Adds live CLI PTY/xterm.js regression with an old-version failure control.
+
 ## 1.2.0b8 — 章节分页与光标修复 / Chapter pages and cursor recovery
 
 - 新增默认开启的「章节另起一页」设置：每章从新页开始，章末留白，页数按章节重算；关闭后恢复连续排版。设置按书库保存，切换和缩放保留原文位置。

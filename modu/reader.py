@@ -306,6 +306,9 @@ class ReaderRail(Widget):
         self.reader.show_scrollbar()
         event.stop()
 
+    def on_mouse_release(self, event: events.MouseRelease):
+        self.reader.dragging = False
+
     def on_mouse_scroll_down(self, event: events.MouseScrollDown):
         self.reader.move(3)
         event.stop()

@@ -9,6 +9,8 @@ Button.-primary { background: $primary; color: $background; }
 #shelf { height: 1fr; padding: 2 5; }
 #shelf-title { height: 2; color: $primary; text-style: bold; }
 #shelf-caption { height: 3; color: $text-muted; }
+#shelf-actions { height: 3; margin-bottom: 1; }
+#shelf-actions Button { width: 1fr; min-width: 8; }
 #books { height: 1fr; background: $background; border: none; }
 DataTable > .datatable--header { background: $surface; color: $primary; text-style: bold; }
 DataTable > .datatable--cursor { background: $primary 22%; color: $foreground; }
@@ -45,12 +47,18 @@ ModalScreen { align: center middle; background: $background 75%; }
 #file-tree { height: 1fr; background: $background; }
 #help-dialog { height: auto; max-height: 94%; }
 #help-text { height: auto; margin-bottom: 1; }
+#confirm-book-dialog { height: auto; max-height: 90%; }
+#confirm-book-title { height: auto; max-height: 4; color: $primary; margin-bottom: 1; }
+#confirm-book-description { height: auto; margin-bottom: 1; }
+#confirm-book-dialog Button { width: 1fr; min-width: 8; }
 
 #reading-body { height: 1fr; }
 #toc-sidebar { width: 26; height: 1fr; padding: 1 1 0 1; border-right: solid $surface; background: $background; }
 #toc-heading { height: 2; color: $primary; text-style: bold; }
 #chapter-progress { height: 2; color: $text-muted; text-overflow: ellipsis; }
-#toc-list { height: 1fr; background: $background; border: none; padding: 0; scrollbar-size: 1 1; }
+#toc-list { height: 1fr; background: $background; border: none; padding: 0; scrollbar-size: 1 1;
+    scrollbar-background: $surface; scrollbar-background-hover: $surface; scrollbar-background-active: $surface;
+    scrollbar-color: $primary 40%; scrollbar-color-hover: $primary 60%; scrollbar-color-active: $primary 80%; }
 #toc-list > .option-list--option-highlighted { color: $primary; background: $primary 12%; text-style: bold; }
 #toc-hint { height: 2; color: $text-muted; }
 ReaderRail { width: 2; height: 1fr; background: $background; }

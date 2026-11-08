@@ -62,7 +62,7 @@ These workflows need no dedicated integration. MODU does not read AI conversatio
 
 Antigravity also documents a side-panel terminal. Its native interaction has not been tested here, so it is listed as “possible, untested,” rather than verified support. [Official documentation](https://antigravity.google/docs/features#integrated-terminal)
 
-**Status: 1.2.0b8 open-source release candidate.** Locally validated on macOS, including user confirmation of right-rail alignment and hiding in the target embedded terminal. Windows/Linux code paths and CI definitions are included, but native terminal acceptance is pending. The same commands can be tried in Windows Terminal with PowerShell. Use a terminal with mouse and truecolor support. The interface supports English and Simplified Chinese; book text stays in its original language.
+**Status: 1.2.0b9 open-source release candidate.** Locally validated on macOS, including user confirmation of right-rail alignment and hiding in the target embedded terminal. Windows/Linux code paths and CI definitions are included, but native terminal acceptance is pending. The same commands can be tried in Windows Terminal with PowerShell. Use a terminal with mouse and truecolor support. The interface supports English and Simplified Chinese; book text stays in its original language.
 
 ## Interface language
 
@@ -89,6 +89,7 @@ modu --library ./private-library
 
 - Import local TXT, EPUB, PDF, and Markdown files. Originals are copied into the library and are never modified.
 - Bookshelf, table of contents, full-text search, bookmarks, and automatic resume.
+- Archive, restore or delete books from the shelf, with confirmation. Archives retain bookmarks and progress. Deletion removes library copies and reading data while keeping the original imported file.
 - Chapter sidebar with current-chapter marker and progress; press `c` to toggle it. Below 70 terminal columns it becomes a modal list.
 - Mouse wheel, a draggable reading rail on the right, and keyboard paging. The rail hides after about two idle seconds without changing text width.
 - Eight themes: black/gold, light paper, dark slate, warm sepia, pale green, light gray, graphite, and dark green. Press `t` to cycle or `s` to choose directly.
@@ -106,6 +107,7 @@ modu --library ./private-library
 | Search | /, type, Enter, select a result, Enter |
 | Toggle bookmark / list bookmarks | b / m |
 | Theme / reading settings | t / s |
+| Archive / restore, delete, archived shelf (on the bookshelf) | a / d / v |
 | English / Chinese interface | l |
 | Import / bookshelf / help | i / Esc / ? |
 | Save and quit | q / Ctrl+q |

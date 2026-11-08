@@ -18,17 +18,18 @@ def test_cursor_guard_releases_terminal_for_suspend_and_shutdown(tmp_path):
         writes.append(data)
         stream.feed(data)
 
-    driver = SimpleNamespace(is_headless=False, write=write, flush=lambda: None)
+    driver = SimpleNamespace(is_headless=False, _mouse=True, write=write, flush=lambda: None)
     app._driver = driver
     app._running = True
-    app._resume_terminal_cursor_guard(app)
+    app._resume_terminal_guard(app)
     assert screen.cursor.hidden
-    app._pause_terminal_cursor_guard(app)
+    app._pause_terminal_guard(app)
     stream.feed("\x1b[?25h")  # An external application / shell owns the cursor.
     before = len(writes)
     app._hide_terminal_cursor()
+    app._restore_terminal_modes()
     assert not screen.cursor.hidden and len(writes) == before
-    app._resume_terminal_cursor_guard(app)
+    app._resume_terminal_guard(app)
     assert screen.cursor.hidden
     for state in ("headless", "stopped", "closed"):
         driver.is_headless = state == "headless"
@@ -37,5 +38,6 @@ def test_cursor_guard_releases_terminal_for_suspend_and_shutdown(tmp_path):
         stream.feed("\x1b[?25h")
         before = len(writes)
         app._hide_terminal_cursor()
+        app._restore_terminal_modes()
         assert not screen.cursor.hidden and len(writes) == before
     app._driver = None
