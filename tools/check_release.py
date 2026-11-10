@@ -74,6 +74,7 @@ def allowed(name: str) -> bool:
         "tests/acceptance_pixels.cjs",
         "tests/acceptance_mouse.cjs",
         "tests/acceptance_web_paging.cjs",
+        "tests/acceptance_web_selection.cjs",
         "tools/render_product.cjs",
         "modu/web.html",
         "modu/web.css",

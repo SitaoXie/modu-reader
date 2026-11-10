@@ -1,5 +1,17 @@
 # 实测记录 / Validation record
 
+## 1.3.0b4 — 自动划词翻译和图片放大 / Selection translation and image zoom
+
+Python 3.11 和 3.14 各通过 158 项测试。460 像素宽的 Chromium 使用原创 EPUB 和真实鼠标拖选，验证手动模式、设置保存、拖动期间零请求、松手后一次请求，以及两种 EPUB 图片的放大和适应窗口。安装版 1.1.16 通过相同回归，并用实际 EPUB 封面验证缩放，用自制 PDF 验证文字层自动划词。macOS WebKit 另用派发的指针事件验证自动翻译和缩放。
+
+有道和 Google 均用自编英文句子实测，收到简体中文译文。浏览器回归使用模拟上游响应，实际书籍正文未发送给在线服务。
+
+Python 3.11 and 3.14 each passed 158 tests. At 460 px, real Chromium pointer input verified manual translation, preference persistence, zero requests during a drag, and exactly one request on release. The installed build passed both image zoom paths, zoomed a real EPUB cover, and translated a drag selection from a generated PDF text layer. A macOS WebKit test exercised automatic translation with dispatched pointer events and verified image zoom. Both live providers returned Simplified Chinese for original sample text. Browser regressions used mocked upstream responses.
+
+```sh
+node tests/acceptance_web_selection.cjs --python .venv/bin/python --modules ./test-artifacts/pixel-tools/node_modules --browser "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --work ./test-artifacts/web-selection
+```
+
 ## 1.3.0b3 — Web 连续翻页 / Continuous Web paging
 
 Python 3.11 和 3.14 各通过 155 项测试。真实 Chromium 与 macOS WebKit 使用两节共 117 行的原创 EPUB 验证 12 屏顺序翻页、11 次精确回翻与短末屏。旧版对照从第 11 行跳到第 81 行。实际安装版 1.1.15 通过同一浏览器回归和缩放检查。

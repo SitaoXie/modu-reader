@@ -1,5 +1,11 @@
 # 更新记录 / Changelog
 
+## 1.3.0b4 — 自动划词翻译和图片放大 / Selection translation and image zoom
+
+Web 设置增加松手后自动翻译，以及有道、Google 和本地 Argos 三种引擎。点击 EPUB 插图或封面可打开大图、缩放并恢复适应窗口。
+
+Web settings now offer translation on pointer release and a choice of Youdao, Google, or on-device Argos. Click an EPUB illustration or cover to open it, zoom in, or fit it to the window.
+
 ## 1.3.0b3 — Web 连续翻页 / Continuous Web paging
 
 左右翻页按当前视口推进，读完本节或本张 PDF 原页才跨页。短末屏从上一屏之后开始，向左可回到刚读过的页首。

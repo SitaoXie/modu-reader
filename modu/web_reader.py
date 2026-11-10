@@ -19,7 +19,9 @@ from .i18n import normalize_language, translate
 from .parsers import SUPPORTED
 from .safety import MAX_SOURCE_BYTES, read_bounded, validate_book_id
 from .themes import LIGHT_PALETTES, PALETTES
-from .translation import LANGUAGES, TranslationError, set_target, settings_for, translate_selection
+from .translation import (
+    LANGUAGES, TranslationError, options_for, set_option, set_target, settings_for, translate_selection,
+)
 from .web_epub import EpubBook
 from .web_pdf import PdfAssets
 
@@ -97,6 +99,7 @@ class Reader:
             },
             "languages": LANGUAGES,
             "translation": settings_for(self.library, None),
+            "translationOptions": options_for(self.library),
         }
 
     def book(self, identifier):
@@ -178,7 +181,8 @@ class Reader:
             return settings_for(self.library, identifier)
         if action == "translate":
             return translate_selection(
-                self.library, identifier, data.get("text"), data.get("source", "")
+                self.library, identifier, data.get("text"), data.get("source", ""),
+                data.get("provider", "local"),
             )
         if action == "archive":
             archived = data.get("archived")
@@ -368,6 +372,8 @@ class Handler(BaseHTTPRequestHandler):
         if route == "api/translation":
             set_target(reader.library, None, data.get("target"))
             return self.json(settings_for(reader.library, None))
+        if route == "api/translation-options":
+            return self.json(set_option(reader.library, data))
         match = re.fullmatch(r"book/([a-f0-9]{64})/(\w+)", route)
         if match:
             identifier, action = match.groups()

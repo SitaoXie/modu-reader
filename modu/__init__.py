@@ -1,3 +1,3 @@
 """墨读 MODU: a local-first terminal reader."""
 
-__version__ = "1.3.0b3"
+__version__ = "1.3.0b4"

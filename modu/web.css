@@ -56,18 +56,29 @@ h2 { font-size: 1.02rem; }
 .textLayer .endOfContent { display: none; }
 footer { border-top: 1px solid var(--panel); justify-content: space-between; min-height: 45px; }
 #progress { text-align: center; font-variant-numeric: tabular-nums; }
-#selection, #toast { position: fixed; z-index: 2; box-shadow: 0 5px 18px #0004; }
+#selection, #selection-preview, #toast { position: fixed; z-index: 2; box-shadow: 0 5px 18px #0004; }
 #selection { background: var(--accent); color: var(--bg); font-weight: 700; }
+#selection-preview { width: min(24rem, calc(100vw - 16px)); max-height: min(45dvh, 22rem); overflow: auto; background: var(--bg); border: 1px solid var(--accent); border-radius: 5px; padding: .65rem; }
+.selection-heading { display: flex; justify-content: space-between; align-items: center; gap: .5rem; color: var(--accent); }
+#selection-result { margin-block: .45rem; white-space: pre-wrap; overflow-wrap: anywhere; }
 #toast { bottom: 3.5rem; left: 50%; transform: translateX(-50%); max-width: 90vw; background: var(--panel); border: 1px solid var(--accent); border-radius: 4px; padding: .6rem 1rem; }
 dialog { width: min(520px, 94vw); max-height: 90dvh; overflow: auto; background: var(--bg); color: var(--fg); border: 1px solid var(--accent); border-radius: 7px; padding: 1.15rem; }
 dialog::backdrop { background: #0008; }
 .dialog-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: .9rem; gap: 1rem; }
 #dialog-body > * + * { margin-top: .7rem; }
 #dialog-body label { display: grid; gap: .25rem; }
+#dialog-body .checkbox-field { display: flex; gap: .5rem; align-items: center; cursor: pointer; }
+.checkbox-field input { accent-color: var(--accent); }
 #dialog-body select { width: 100%; }
 .dialog-actions, .mark-row { display: flex; gap: .5rem; align-items: center; }
 .mark-row > :first-child { flex: 1; text-align: left; }
 .translation-result { border-left: 2px solid var(--accent); padding: .4rem .75rem; white-space: pre-wrap; }
+dialog.image-dialog { width: min(1100px, 94vw); }
+.image-toolbar { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.image-toolbar output { color: var(--muted); margin-inline-start: .35rem; font-variant-numeric: tabular-nums; }
+.image-viewport { height: min(66dvh, 840px); overflow: auto; background: var(--panel); }
+.image-stage { display: grid; place-items: center; min-width: 100%; min-height: 100%; width: max-content; }
+.image-stage img { display: block; height: auto; }
 .copy-path { overflow-wrap: anywhere; font-family: ui-monospace, monospace; }
 @media (max-width: 720px) {
   #tagline { display: none; }

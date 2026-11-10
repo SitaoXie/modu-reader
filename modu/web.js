@@ -171,6 +171,7 @@ const endpoint = path => new URL(path, import.meta.url);
 const frame = $("book-frame");
 const pdfView = $("pdf-view");
 const dialog = $("dialog");
+const selectionPreview = $("selection-preview");
 const root = document.documentElement;
 const strings = {
   import: ["导入", "Import"], theme: ["主题", "Theme"], settings: ["设置", "Settings"],
@@ -204,6 +205,20 @@ const strings = {
   target: ["目标语言", "Target language"], saved: ["已保存", "Saved"],
   translationNote: ["翻译在本机处理。首次使用语种组合时会下载模型，可能需要几分钟。", "Translation runs on this device. The first use of a language pair downloads models and may take a few minutes."],
   translating: ["正在准备模型或翻译…", "Preparing models or translating…"],
+  onlineTranslating: ["正在翻译…", "Translating…"],
+  translationEngine: ["翻译引擎", "Translation engine"],
+  local: ["本地 · Argos", "On-device · Argos"],
+  youdao: ["有道网页翻译", "Youdao Web"],
+  google: ["Google 网页翻译", "Google Translate Web"],
+  automaticTranslation: ["松开鼠标后自动翻译选区", "Translate automatically when selection ends"],
+  onlineTranslationNote: ["使用在线引擎时，选中文字和语种会发送给所选服务。", "Online translation sends the selected text and language codes to the chosen service."],
+  web_translation_failed: ["网页翻译暂时不可用，请重试或切换引擎。", "Web translation is unavailable. Try again or switch engines."],
+  youdao_language_pair: ["有道网页支持简体中文与英语、日语、韩语、法语、俄语、西班牙语互译。", "Youdao Web supports Simplified Chinese paired with English, Japanese, Korean, French, Russian, or Spanish."],
+  translation_provider_changed: ["翻译引擎已更改，请刷新页面。", "The translation engine changed. Reload this page."],
+  image: ["书内图片", "Book image"], fit: ["适应窗口", "Fit"],
+  zoomIn: ["放大", "Zoom in"], zoomOut: ["缩小", "Zoom out"],
+  imageError: ["无法加载此图片。", "This image could not be loaded."],
+  close: ["关闭", "Close"],
   too_long: ["请选择不超过 600 个字符的文字。", "Select up to 600 characters."],
   unsupported_language: ["暂不支持这组语言。请在设置中选择其他目标语言。", "This language pair is unavailable. Choose another target in Settings."],
   dependencies: ["请安装 MODU 的 translation 扩展。", "Install MODU with its translation extra."],
@@ -220,6 +235,8 @@ let spot = {index: 0, scroll: 0};
 let pendingFrame;
 let frameObserver;
 let selection = "";
+let selectionTimer;
+let translationRequest;
 let toastTimer;
 let saveTimer;
 let bookGeneration = 0;
@@ -304,7 +321,9 @@ function syncSidebar() {
   $("toc-button").setAttribute("aria-expanded", String(sidebarOpen));
 }
 
-function showDialog(title, children) {
+function showDialog(title, children, mode = "") {
+  clearSelection();
+  dialog.className = mode;
   $("dialog-title").textContent = title;
   $("dialog-body").replaceChildren(...children);
   if (!dialog.open) dialog.showModal();
@@ -379,8 +398,7 @@ function resetReader() {
   pdfGeneration++;
   book = undefined;
   pendingFrame = undefined;
-  selection = "";
-  $("selection").hidden = true;
+  clearSelection();
   frame.hidden = true;
   frame.removeAttribute("src");
   pdfView.hidden = true;
@@ -514,8 +532,7 @@ function jump(value, fragment = "", turning = false) {
   const sameSection = spot.index === value.index;
   if (!turning) pageHistory.length = 0;
   spot = boundedSpot(value);
-  selection = "";
-  $("selection").hidden = true;
+  clearSelection();
   if (book.format === "pdf") {
     if (sameSection && pager) {
       pager.restore(spot, value.endRatio);
@@ -557,6 +574,7 @@ function onFrameScroll() {
   if (!book || frame.hidden || pendingFrame) return;
   const doc = frame.contentDocument;
   if (!doc || currentFrameIndex() < 0) return;
+  if (!selectionPreview.hidden) clearSelection();
   updatePosition();
 }
 
@@ -597,7 +615,8 @@ frame.addEventListener("load", () => {
   }
   doc.addEventListener("scroll", onFrameScroll, {passive: true});
   doc.addEventListener("keydown", keyboard);
-  doc.addEventListener("selectionchange", () => detectSelection(doc, frame.getBoundingClientRect()));
+  bindSelection(doc, doc, () => frame.getBoundingClientRect());
+  if (book.format === "epub") bindImages(doc);
   onFrameScroll();
   // WebKit can suppress events from the scriptless frame. Observe its DOM
   // from the reader window without granting the publication script access.
@@ -605,7 +624,7 @@ frame.addEventListener("load", () => {
     if (frame.contentDocument !== doc || dialog.open) return;
     const selected = doc.getSelection();
     if (selected && selected.toString().trim() !== selection) {
-      detectSelection(doc, frame.getBoundingClientRect());
+      detectSelection(doc, () => frame.getBoundingClientRect());
     }
     if (pager && pager.position.offset !== spot.offset) onFrameScroll();
   }, 160);
@@ -672,14 +691,14 @@ async function renderPdf(endRatio) {
 }
 
 pdfView.addEventListener("scroll", () => {
+  if (!selectionPreview.hidden) clearSelection();
   if (book?.format === "pdf" && !pdfView.hidden) updatePosition();
 }, {passive: true});
 
 function navigate(delta) {
   if (!isReady()) return;
   if (pager.resize(spot) || pager.releaseOnScroll()) pageHistory.length = 0;
-  selection = "";
-  $("selection").hidden = true;
+  clearSelection();
   if (delta < 0) {
     const previous = pageHistory.pop();
     if (previous) jump(previous, "", true);
@@ -721,40 +740,161 @@ function selectField(title, choices, value, onChange) {
 async function settings() {
   try {
     const item = book;
+    const latest = await api("api/shelf");
+    shelfData.translationOptions = latest.translationOptions;
+    const preferences = translationOptions();
     const choices = Object.entries(shelfData.languages);
-    const value = item ? (await api(bookPath(item))).translation : (await api("api/shelf")).translation;
+    const value = item ? (await api(bookPath(item))).translation : latest.translation;
+    const notice = element("p", translationNotice(preferences.provider), "muted");
+    const engine = selectField(label("translationEngine"),
+      ["local", "youdao", "google"].map(key => [key, label(key)]), preferences.provider,
+      async select => {
+        await saveTranslationOption(select, {provider: select.value}, "provider");
+        notice.textContent = translationNotice(translationOptions().provider);
+      });
+    const automatic = element("input");
+    automatic.type = "checkbox";
+    automatic.checked = preferences.automatic;
+    automatic.addEventListener("change", () => {
+      saveTranslationOption(automatic, {automatic: automatic.checked}, "checked").catch(report);
+    });
+    const automaticField = element("label", null, "checkbox-field");
+    automaticField.append(automatic, element("span", label("automaticTranslation")));
     const global = selectField(label("globalTarget"), [["", label("system") + " · " + (shelfData.languages[value.system_target] || value.system_target)], ...choices], value.global_target, async select => {
       const updated = await api("api/translation", {target: select.value});
       if (item && book === item) item.translation = (await api(bookPath(item))).translation;
       select.value = updated.global_target;
       toast(label("saved"));
     });
-    const nodes = [global];
+    const nodes = [engine, notice, automaticField, global];
     if (item) nodes.push(selectField(label("bookTarget"), [["", label("inherit")], ...choices], value.book_target, async select => {
       item.translation = await api(bookPath(item) + "/translation", {target: select.value});
       toast(label("saved"));
     }));
-    nodes.push(element("p", label("translationNote"), "muted"));
     showDialog(label("settings"), nodes);
   } catch (error) { report(error); }
 }
 
-function detectSelection(doc, box = {left: 0, top: 0}) {
-  if (!book || dialog.open) return;
-  const range = doc.getSelection();
-  if (doc === document && (!pdfView.contains(range?.anchorNode) || !pdfView.contains(range?.focusNode))) {
-    $("selection").hidden = true;
-    return;
-  }
-  selection = range?.toString().trim() || "";
-  $("selection").hidden = !selection;
-  if (!selection || !range.rangeCount) return;
-  const rect = range.getRangeAt(0).getBoundingClientRect();
-  $("selection").style.left = Math.max(8, Math.min(innerWidth - 135, box.left + rect.left)) + "px";
-  $("selection").style.top = Math.max(8, Math.min(innerHeight - 48, box.top + rect.bottom + 7)) + "px";
+function translationOptions() {
+  return shelfData?.translationOptions || {provider: "local", automatic: false};
 }
 
-async function selectionDialog() {
+async function saveTranslationOption(control, change, property) {
+  const key = Object.keys(change)[0];
+  control.disabled = true;
+  try {
+    const updated = await api("api/translation-options", change);
+    shelfData.translationOptions = {...translationOptions(), [key]: updated[key]};
+    toast(label("saved"));
+  } finally {
+    control[property] = translationOptions()[key];
+    control.disabled = false;
+  }
+}
+
+function translationNotice(provider) {
+  return label(provider === "local" ? "translationNote" : "onlineTranslationNote");
+}
+
+function translating(provider) {
+  return label(provider === "local" ? "translating" : "onlineTranslating");
+}
+
+function initialSource(item) {
+  const language = item.sourceLanguage?.replaceAll("_", "-").toLowerCase();
+  const primary = language?.split("-")[0];
+  if (primary === "zh") return /(?:^|-)(?:hant|tw|hk|mo)(?:-|$)/.test(language) ? "zh-Hant" : "zh-Hans";
+  return primary in shelfData.languages ? primary : "";
+}
+
+function clearSelection() {
+  clearTimeout(selectionTimer);
+  translationRequest?.abort();
+  translationRequest = undefined;
+  selection = "";
+  selectionPreview.hidden = $("selection").hidden = true;
+}
+
+function readingSelection(doc) {
+  if (!book || dialog.open || (doc !== document && (frame.hidden || frame.contentDocument !== doc))) return;
+  const range = doc.getSelection();
+  if (!range?.rangeCount || range.isCollapsed) return;
+  if (doc === document && (pdfView.hidden || !pdfView.contains(range.anchorNode) || !pdfView.contains(range.focusNode))) return;
+  return range;
+}
+
+function placeSelection(node, range, box) {
+  const rect = range.getRangeAt(0).getBoundingClientRect();
+  const left = box.left + rect.left;
+  const below = box.top + rect.bottom + 7;
+  const above = box.top + rect.top - node.offsetHeight - 7;
+  const top = below + node.offsetHeight <= innerHeight - 8 ? below : above;
+  node.style.left = Math.max(8, Math.min(innerWidth - node.offsetWidth - 8, left)) + "px";
+  node.style.top = Math.max(8, Math.min(innerHeight - node.offsetHeight - 8, top)) + "px";
+}
+
+function detectSelection(doc, getBox) {
+  if (dialog.open || (doc === document && book?.format !== "pdf")) return;
+  const range = readingSelection(doc);
+  const next = range?.toString().trim() || "";
+  if (next !== selection && !selectionPreview.hidden) clearSelection();
+  selection = next;
+  $("selection").hidden = !selection || translationOptions().automatic;
+  if (!$("selection").hidden) placeSelection($("selection"), range, getBox());
+}
+
+function bindSelection(doc, surface, getBox) {
+  let pointer;
+  doc.addEventListener("selectionchange", () => detectSelection(doc, getBox));
+  surface.addEventListener("pointerdown", event => {
+    if (event.isPrimary && event.button === 0) {
+      clearSelection();
+      pointer = event.pointerId;
+    }
+  });
+  doc.addEventListener("pointercancel", event => {
+    if (event.pointerId === pointer) pointer = undefined;
+  });
+  doc.addEventListener("pointerup", event => {
+    if (event.pointerId !== pointer) return;
+    pointer = undefined;
+    if (translationOptions().automatic) {
+      selectionTimer = setTimeout(() => previewTranslation(doc, getBox), 220);
+    }
+  });
+}
+
+async function previewTranslation(doc, getBox) {
+  const item = book;
+  const range = readingSelection(doc);
+  const text = range?.toString().trim();
+  if (!text || !translationOptions().automatic) return;
+  if (Array.from(text).length > 600) return toast(label("too_long"));
+  selection = text;
+  const {provider} = translationOptions();
+  const request = new AbortController();
+  translationRequest = request;
+  $("selection-engine").textContent = label(provider);
+  const output = $("selection-result");
+  output.textContent = translating(provider);
+  selectionPreview.hidden = false;
+  placeSelection(selectionPreview, range, getBox());
+  try {
+    const result = await api(bookPath(item) + "/translate", {text, source: initialSource(item), provider}, {signal: request.signal});
+    if (!request.signal.aborted) output.textContent = result.text;
+  } catch (error) {
+    if (!request.signal.aborted) output.textContent = label(error.message);
+  } finally {
+    if (translationRequest === request) {
+      translationRequest = undefined;
+      const current = readingSelection(doc);
+      if (current?.toString().trim() === text) placeSelection(selectionPreview, current, getBox());
+      else clearSelection();
+    }
+  }
+}
+
+async function selectionDialog(start = true) {
   const text = selection;
   const item = book;
   $("selection").hidden = true;
@@ -763,11 +903,9 @@ async function selectionDialog() {
   try {
     const pref = (await api(bookPath(item))).translation;
     if (book !== item) return;
+    const {provider} = translationOptions();
     const options = Object.entries(shelfData.languages);
-    const language = item.sourceLanguage?.replace("_", "-");
-    const primary = language?.split("-")[0];
-    const initial = language in shelfData.languages ? language : primary in shelfData.languages ? primary : "";
-    const source = selectField(label("source"), [["", label("auto")], ...options], initial);
+    const source = selectField(label("source"), [["", label("auto")], ...options], initialSource(item));
     const description = element("p", label("target") + " · " + (shelfData.languages[pref.target] || pref.target));
     const output = element("div", "", "translation-result");
     output.hidden = true;
@@ -775,16 +913,91 @@ async function selectionDialog() {
     const go = button(label("translate"), async () => {
       go.disabled = true;
       output.hidden = false;
-      output.textContent = label("translating");
+      output.textContent = translating(provider);
       try {
-        const result = await api(bookPath(item) + "/translate", {text, source: source.querySelector("select").value});
+        const result = await api(bookPath(item) + "/translate", {text, source: source.querySelector("select").value, provider});
         output.textContent = result.text;
       } catch (error) { output.textContent = label(error.message); }
       finally { go.disabled = false; }
     });
-    showDialog(label("translate"), [source, description, element("p", label("translationNote"), "muted"), go, output]);
-    go.click();
+    showDialog(label("translate") + " · " + label(provider),
+      [source, description, element("p", translationNotice(provider), "muted"), go, output]);
+    if (start) go.click();
   } catch (error) { report(error); }
+}
+
+function bindImages(doc) {
+  const prefix = endpoint(bookPath() + "/epub/");
+  function imageSource(image) {
+    const source = image.currentSrc || image.getAttribute("src")
+      || image.getAttribute("href") || image.getAttribute("xlink:href");
+    if (!source) return;
+    const url = new URL(source, doc.URL);
+    if (url.origin === prefix.origin && url.pathname.startsWith(prefix.pathname)) return url.href;
+  }
+  for (const image of doc.querySelectorAll("img, svg image")) {
+    if (!imageSource(image)) continue;
+    image.style.cursor = "zoom-in";
+    if (!image.closest("a")) {
+      image.setAttribute("tabindex", "0");
+      image.setAttribute("role", "button");
+      image.setAttribute("aria-label", label("zoomIn") + " · " + (image.getAttribute("alt") || label("image")));
+    }
+    function open(event) {
+      const url = imageSource(image);
+      if (!url || dialog.open || frame.contentDocument !== doc) return;
+      event.preventDefault();
+      showImage(url, image.getAttribute("alt") || label("image"));
+    }
+    image.addEventListener("click", event => {
+      if (event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) open(event);
+    });
+    image.addEventListener("keydown", event => {
+      if (event.key === "Enter") open(event);
+    });
+  }
+}
+
+function showImage(url, alt) {
+  const image = element("img");
+  image.alt = alt;
+  image.hidden = true;
+  const stage = element("div", null, "image-stage");
+  stage.append(image);
+  const viewport = element("div", null, "image-viewport");
+  viewport.tabIndex = 0;
+  viewport.setAttribute("aria-label", alt);
+  viewport.append(stage);
+  const percent = element("output");
+  let scale = 0;
+  const fitScale = () => Math.min(1, viewport.offsetWidth / image.naturalWidth, viewport.offsetHeight / image.naturalHeight);
+  function update() {
+    if (!image.naturalWidth) return;
+    const zoom = scale || fitScale();
+    image.style.width = Math.max(1, Math.floor(image.naturalWidth * zoom)) + "px";
+    image.hidden = false;
+    percent.textContent = Math.round(zoom * 100) + "%";
+    smaller.disabled = zoom <= fitScale() + 0.001;
+    larger.disabled = zoom >= 4;
+  }
+  const fit = button(label("fit"), () => { scale = 0; update(); });
+  const smaller = button("−", () => { scale = Math.max(fitScale(), (scale || fitScale()) / 1.5); update(); });
+  const larger = button("+", () => { scale = Math.min(4, (scale || fitScale()) * 1.5); update(); });
+  smaller.setAttribute("aria-label", label("zoomOut"));
+  larger.setAttribute("aria-label", label("zoomIn"));
+  fit.disabled = smaller.disabled = larger.disabled = true;
+  const toolbar = element("div", null, "image-toolbar");
+  toolbar.append(fit, smaller, larger, percent);
+  const observer = new ResizeObserver(update);
+  dialog.addEventListener("close", () => observer.disconnect(), {once: true});
+  image.onload = () => { fit.disabled = false; update(); };
+  image.onerror = () => {
+    toolbar.hidden = true;
+    viewport.replaceChildren(element("p", label("imageError")));
+  };
+  showDialog(label("image"), [toolbar, viewport], "image-dialog");
+  observer.observe(viewport);
+  image.src = url;
 }
 
 async function addMark() {
@@ -819,6 +1032,11 @@ function marks() {
 
 function keyboard(event) {
   const tag = event.target.tagName;
+  if (event.key === "Escape" && !selectionPreview.hidden) {
+    clearSelection();
+    event.preventDefault();
+    return;
+  }
   if (event.ctrlKey || event.metaKey || event.altKey || dialog.open || ["INPUT", "SELECT", "TEXTAREA"].includes(tag)) return;
   const direction = ["ArrowRight", "PageDown"].includes(event.key) || (event.key === " " && tag !== "BUTTON") ? 1
     : ["ArrowLeft", "PageUp"].includes(event.key) ? -1 : 0;
@@ -852,10 +1070,11 @@ $("next").onclick = () => navigate(1);
 $("mark-button").onclick = addMark;
 $("marks-button").onclick = marks;
 $("selection").addEventListener("mousedown", event => event.preventDefault());
-$("selection").onclick = selectionDialog;
-document.addEventListener("selectionchange", () => {
-  if (book?.format === "pdf") detectSelection(document);
-});
+$("selection").onclick = () => selectionDialog();
+selectionPreview.addEventListener("mousedown", event => event.preventDefault());
+$("selection-close").onclick = clearSelection;
+$("selection-source").onclick = () => selectionDialog(false);
+bindSelection(document, pdfView, () => ({left: 0, top: 0}));
 document.addEventListener("keydown", keyboard);
 $("import-button").onclick = () => {
   if (!shelfData) return;
@@ -883,6 +1102,7 @@ let resizeTimer;
 new ResizeObserver(() => {
   clearTimeout(resizeTimer);
   if (!pager || pager.layout === pager.geometry) return;
+  clearSelection();
   pageHistory.length = 0;
   if (pdfDocument && !pdfView.hidden) {
     resizeTimer = setTimeout(() => renderPdf().catch(report), 180);

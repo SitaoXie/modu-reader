@@ -1,10 +1,11 @@
-"""Book-scoped preferences and local inference with official Argos models."""
+"""Translation preferences, on-device inference, and opt-in web providers."""
 
 from __future__ import annotations
 
 import ctypes
 from functools import lru_cache
 import hashlib
+from http.client import HTTPException
 import json
 import locale
 import os
@@ -16,9 +17,11 @@ import sys
 import tempfile
 from threading import Lock
 import time
+from urllib.parse import urlencode
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 from zipfile import BadZipFile, ZipFile
 
+from bs4 import BeautifulSoup
 from platformdirs import user_cache_path
 
 
@@ -76,6 +79,10 @@ _MODEL_FILES = {
 _REQUIRED_FILES = {"sentencepiece.model", "model/model.bin"}
 MODEL_CACHE = user_cache_path("MODU", appauthor=False) / "translation"
 MAX_SELECTION = 600
+PROVIDERS = {"local", "youdao", "google"}
+_GOOGLE_LANGUAGES = {"zh-Hans": "zh-CN", "zh-Hant": "zh-TW"}
+_YOUDAO_LANGUAGES = {"en": "EN", "ja": "JA", "ko": "KR", "fr": "FR", "ru": "RU", "es": "SP"}
+_MAX_WEB_RESPONSE = 256 * 1024
 _MAX_ARCHIVE = 192 * 1024 * 1024
 _MAX_EXPANDED = 384 * 1024 * 1024
 _LOCK = Lock()
@@ -179,6 +186,24 @@ def set_target(library, book_id: str | None, value: str) -> None:
             raise TranslationError("invalid_book")
 
 
+def options_for(library) -> dict[str, str | bool]:
+    provider = library.setting("translation_provider")
+    return {
+        "provider": provider if isinstance(provider, str) and provider in PROVIDERS else "local",
+        "automatic": library.setting("translation_automatic") is True,
+    }
+
+
+def set_option(library, data: dict) -> dict[str, str | bool]:
+    if data.keys() == {"provider"} and isinstance(data["provider"], str) and data["provider"] in PROVIDERS:
+        library.set_setting("translation_provider", data["provider"])
+    elif data.keys() == {"automatic"} and type(data["automatic"]) is bool:
+        library.set_setting("translation_automatic", data["automatic"])
+    else:
+        raise ValueError("Invalid translation preference")
+    return options_for(library)
+
+
 def _guess_source(text: str) -> str:
     for pattern, code in (
         (r"[\u3040-\u30ff\uff66-\uff9d]", "ja"),
@@ -196,6 +221,55 @@ def _guess_source(text: str) -> str:
 class _NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
+
+
+def _web_response(request: Request) -> bytes:
+    try:
+        with build_opener(_NoRedirect()).open(request, timeout=8) as response:
+            data = response.read(_MAX_WEB_RESPONSE + 1)
+        if len(data) <= _MAX_WEB_RESPONSE:
+            return data
+    except (HTTPException, OSError, ValueError):
+        pass
+    raise TranslationError("web_translation_failed") from None
+
+
+def _google(text: str, source: str, target: str) -> tuple[str, str]:
+    params = urlencode({
+        "client": "gtx", "dt": "t", "q": text,
+        "sl": _GOOGLE_LANGUAGES.get(source, source or "auto"),
+        "tl": _GOOGLE_LANGUAGES.get(target, target),
+    })
+    # Consumer web interface. Its response format can change independently of MODU.
+    request = Request("https://translate.googleapis.com/translate_a/single?" + params)  # nosec B310
+    try:
+        result = json.loads(_web_response(request))
+        translated = "".join(part[0] for part in result[0] if isinstance(part[0], str))
+        if translated.strip():
+            return translated, _language_code(result[2]) or source
+    except TranslationError:
+        raise
+    except (IndexError, KeyError, TypeError, ValueError):
+        pass
+    raise TranslationError("web_translation_failed") from None
+
+
+def _youdao(text: str, source: str, target: str) -> str:
+    if source == "zh-Hans" and target in _YOUDAO_LANGUAGES:
+        pair = "ZH_CN2" + _YOUDAO_LANGUAGES[target]
+    elif target == "zh-Hans" and source in _YOUDAO_LANGUAGES:
+        pair = _YOUDAO_LANGUAGES[source] + "2ZH_CN"
+    else:
+        raise TranslationError("youdao_language_pair")
+    # Submit the same public form as the mobile translation page.
+    request = Request(  # nosec B310
+        "https://m.youdao.com/translate",
+        data=urlencode({"inputtext": text, "type": pair}).encode("ascii"),
+    )
+    result = BeautifulSoup(_web_response(request), "html.parser").select_one("#translateResult")
+    if result is not None and (translated := result.get_text("\n", strip=True)):
+        return translated
+    raise TranslationError("web_translation_failed")
 
 
 def _download_model(name: str, archive: Path) -> None:
@@ -320,16 +394,29 @@ def _translate_pair(text: str, source: str, target: str) -> str:
     return " ".join(decoded.replace("▁", " ").split())
 
 
-def translate_selection(library, book_id: str, text: str, source: str = "") -> dict[str, str]:
+def translate_selection(
+    library, book_id: str, text: str, source: str = "", provider: str = "local"
+) -> dict[str, str]:
     if not isinstance(text, str) or not text.strip():
         raise TranslationError("empty")
     text = text.strip()
     if len(text) > MAX_SELECTION:
         raise TranslationError("too_long")
-    from_language = _language_code(source) if source else _guess_source(text)
-    if not from_language:
+    if provider != options_for(library)["provider"]:
+        raise TranslationError("translation_provider_changed")
+    from_language = _language_code(source)
+    if not isinstance(source, str) or (source and not from_language):
         raise TranslationError("unsupported_language")
     target = settings_for(library, book_id)["target"]
+    if provider == "google":
+        if from_language != target:
+            text, from_language = _google(text, from_language, target)
+        return {"text": text, "source": from_language, "target": target}
+    from_language = from_language or _guess_source(text)
+    if provider == "youdao":
+        if from_language != target:
+            text = _youdao(text, from_language, target)
+        return {"text": text, "source": from_language, "target": target}
     if from_language != target:
         try:
             with _LOCK:

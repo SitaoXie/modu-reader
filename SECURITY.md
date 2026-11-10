@@ -1,6 +1,6 @@
 # 安全与隐私 / Security and privacy
 
-MODU 在本机复制和解析明确选择的书籍。不包含遥测、书中脚本执行或自动更新。Web 阅读会在本机回环地址开启临时服务，按会话限制访问，书中资源仅从书库读取。PDF.js 和翻译模型按需从其发行方下载，选中文字只在本机推理。SQLite 语句使用参数绑定；缓存不使用 pickle；导入不使用 shell。
+MODU 在本机复制和解析明确选择的书籍。不包含遥测、书中脚本执行或自动更新。Web 阅读会在本机回环地址开启临时服务，按会话限制访问，书中资源仅从书库读取。PDF.js 和本地翻译模型按需从其发行方下载。翻译默认在本机处理。选择在线引擎后，翻译请求仅把选区和语种通过 HTTPS 发给有道或 Google。SQLite 语句使用参数绑定；缓存不使用 pickle；导入不使用 shell。
 
 解析在独立 Python 进程中执行，限制输入、输出、EPUB 解压内容、PDF 页数及运行时间。XML 禁止 DTD 和外部实体；文件名与正文剥离终端控制字符及双向覆盖控制符。缓存采用有界解压、格式校验和原子写入。书库在创建时使用当前平台适用的私有权限。
 
@@ -12,7 +12,7 @@ MODU 在本机复制和解析明确选择的书籍。不包含遥测、书中脚
 
 ---
 
-MODU copies and parses explicitly selected local books. It has no telemetry, book-script execution or automatic updater. Web reading uses a temporary loopback service with session-scoped access. Book resources come from the local library. PDF.js and translation models download on demand from their distributors. Selected text is processed on the device. SQLite uses bound parameters; caches do not use pickle; imports do not invoke a shell.
+MODU copies and parses explicitly selected local books. It has no telemetry, book-script execution or automatic updater. Web reading uses a temporary loopback service with session-scoped access. Book resources come from the local library. PDF.js and local translation models download on demand from their distributors. Translation runs on the device by default. Choosing an online engine sends only the selection and language codes to Youdao or Google over HTTPS when translating. SQLite uses bound parameters; caches do not use pickle; imports do not invoke a shell.
 
 Parsing runs in a separate Python process with limits on input/output size, EPUB expansion, PDF pages and execution time. XML DTDs/external entities are forbidden. Terminal controls and bidi override controls are stripped. Cache reads use bounded decompression and schema validation; writes are atomic. Newly created library directories use platform-appropriate private permissions.
 
