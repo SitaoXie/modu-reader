@@ -74,6 +74,9 @@ def allowed(name: str) -> bool:
         "tests/acceptance_pixels.cjs",
         "tests/acceptance_mouse.cjs",
         "tools/render_product.cjs",
+        "modu/web.html",
+        "modu/web.css",
+        "modu/web.js",
     }:
         return True
     if len(path.parts) == 2:

@@ -11,7 +11,7 @@ MODU is an offline terminal ebook reader for Chinese and English, supporting TXT
 - **Fits beside your work**: narrow-window layouts, a collapsible chapter sidebar, mouse scrolling, and keyboard paging.
 - **Easy to put down and resume**: automatic position saving and source anchors that survive terminal resizing.
 - **Comfortable in both languages**: CJK punctuation rules, intact English words and contractions, and eight coordinated reading themes.
-- **Your books stay local**: no account, runtime network requests, telemetry, background server, or WebView.
+- **Your books stay local.** Optional Web reading preserves EPUB and PDF layouts and supports translation on your device.
 
 ![English reading in the black-and-gold theme](docs/images/reading-english.png)
 
@@ -62,7 +62,7 @@ These workflows need no dedicated integration. MODU does not read AI conversatio
 
 Antigravity also documents a side-panel terminal. Its native interaction has not been tested here, so it is listed as “possible, untested,” rather than verified support. [Official documentation](https://antigravity.google/docs/features#integrated-terminal)
 
-**Status: 1.2.0b10 open-source release candidate.** Locally validated on macOS, including user confirmation of right-rail alignment and hiding in the target embedded terminal. Windows/Linux code paths and CI definitions are included, but native terminal acceptance is pending. The same commands can be tried in Windows Terminal with PowerShell. Use a terminal with mouse and truecolor support. The interface supports English and Simplified Chinese; book text stays in its original language.
+**Status: 1.3.0b1 open-source release candidate.** Locally validated on macOS, including user confirmation of right-rail alignment and hiding in the target embedded terminal. Windows/Linux code paths and CI definitions are included, but native terminal acceptance is pending. The same commands can be tried in Windows Terminal with PowerShell. Use a terminal with mouse and truecolor support. The interface supports English and Simplified Chinese; book text stays in its original language.
 
 ## Interface language
 
@@ -84,6 +84,18 @@ modu --library ./private-library
 ```
 
 `--shelf` opens the bookshelf, `--import-only` imports without opening the reader, `--list` lists books, and `--library` selects a separate library.
+
+## Web reading and selection translation
+
+```sh
+uv tool install --upgrade "modu-reader[webview,translation] @ git+https://github.com/SitaoXie/modu-reader"
+modu --web
+modu --web "My book.epub"
+```
+
+The Web reader shares the shelf and themes and keeps its own reading positions and bookmarks. EPUB preserves the book's navigation, styles and bundled images. PDF renders the original pages and provides a selectable text layer when the file has text. Choose **Download renderer** on first PDF use to install the local PDF.js runtime. Use `modu --browser` to open the same reader in a browser. On macOS and Windows, the optional native window uses WebKit or WebView2.
+
+Select a passage and click **Translate** next to the selection. Translation runs on the device without an account. The first use downloads the required model files. Choose a target in **Settings → Target for this book** to override only that book. The global setting defaults to the system language, with English as fallback when the system language is unavailable. Each selection can contain up to 600 characters. Scanned PDFs need a text layer for selection.
 
 ## Reading features
 
@@ -119,15 +131,15 @@ Pages continue without repeating the previous page's last line, and resizing kee
 ## Formats and limits
 
 - TXT supports UTF-8, BOM-marked UTF-16, GB18030, and other detectable encodings. Unnumbered chapter detection is heuristic, based on short headings and surrounding blank lines.
-- EPUB follows spine order. Images become alternative text. DRM is unsupported; external resources are never fetched.
-- PDF uses **pypdf** for text extraction and reflow, not original-page rendering. Columns, complex tables, and font encodings can affect the result. There is no OCR. Encrypted PDFs are rejected; PDF JavaScript is not executed.
+- The terminal follows EPUB spine order and displays image alternatives. DRM is unsupported; external resources are never fetched.
+- The terminal uses **pypdf** for text extraction and reflow, not original-page rendering. Columns, complex tables, and font encodings can affect the result. There is no OCR. Encrypted PDFs are rejected; PDF JavaScript is not executed.
 - Markdown becomes reading text with embedded HTML execution disabled. Links are not visited.
 - Maximum source file: 64 MiB. EPUB: at most 4096 members, 8 MiB per member, and 64 MiB total expanded content. Documents: 8 million characters and 100,000 blocks. PDF: at most 2000 pages.
 - Extraction runs in a child process terminated after 45 seconds. POSIX systems additionally attempt CPU/address-space limits. Windows does not receive those POSIX memory limits. This is not a complete OS security sandbox: import files from trusted sources.
 
 ## Local data and privacy
 
-No accounts, network requests, telemetry, background server, or WebView. Normal operation does not export text diagnostics. Installing/updating dependencies and running developer vulnerability scans require network access.
+Terminal reading works offline. Web reading uses a temporary local loopback service. PDF rendering and new translation pairs download their components on first use and work offline afterward. Translation processes selected text on your device.
 
 platformdirs chooses the user data directory with application name `MODU`:
 

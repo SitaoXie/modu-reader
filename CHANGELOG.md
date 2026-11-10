@@ -1,5 +1,14 @@
 # 更新记录 / Changelog
 
+## 1.3.0b1 — Web 阅读与划词翻译 / Web reading and selection translation
+
+- 增加 `modu --web` 和 `modu --browser`，保留 EPUB 原书样式、插图和目录，按原页渲染 PDF。
+- 选中文字即可翻译，无需账户。目标语言依次采用单本设置、全局设置、系统语言。模型首次使用时下载。
+- Windows 终端停止输出可能被计作一格的标点辅助字符，修复正文和帮助边框错位。
+
+English: adds a Web reader with EPUB publication styles and navigation, original PDF pages, and on-device selection translation. Book settings override the global target, which follows the system by default. Windows terminal output omits a punctuation helper that could occupy a cell and misalign the reader.
+
+
 ## 1.2.0b10 — 导入副本说明 / Import copy information
 
 - 中英文导入窗口和命令行明确说明：导入创建独立副本，成功后修改、移动或删除原文件均不影响阅读，后续更改不会自动同步。

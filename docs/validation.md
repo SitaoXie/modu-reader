@@ -1,5 +1,17 @@
 # 实测记录 / Validation record
 
+## 1.3.0b1 — Web 阅读与划词翻译 / Web reading and selection translation
+
+2026-11-10，macOS 本地验证。Python 3.11 和 3.14 各通过 154 项测试。
+
+- 在隔离书库验证实际 EPUB 的 10 个阅读单元、33 个目录锚点和 72 张内嵌图片。Chromium 验收覆盖目录跳转、460 像素窄窗、鼠标选词、翻译、书签、导入副本路径与单本语言覆盖。验收记录到 0 次浏览器外部请求。
+- 实际安装版 1.1.13 经 macOS 原生 WebKit 打开封面和章节。脚本禁用的 EPUB 内页从外层读取选区及滚动位置。验证续读位置保存、70 字符 EPUB 选区与 52 字符 PDF 选区的一次点击翻译。验收禁用模型下载，使用已缓存模型完成推理。
+- 实际 PDF 在 Chromium 渲染了原页及 246 个可选文字片段，并通过翻译、翻页和续读验证。PDF.js 安装器验证官方归档 SHA-512 和资源白名单。
+- Windows 字宽修复通过真实 CLI 输出回放。在 42×24、70×30 和 110×36 终端尺寸模拟旧 Windows 控制台的字宽规则。旧输出可复现偏移，修复后正文、页码和帮助边框对齐。仍待原生 Windows 复测。
+- 书籍、缓存、原文选区和实际书页截图均留在隔离测试目录。
+
+English: 154 tests passed on each of Python 3.11 and 3.14. The supplied EPUB was checked in an isolated library across 10 reading units, 33 TOC anchors and 72 embedded images. Chromium exercised mouse word selection, translation, settings scope, bookmarks, import path, narrow layout and PDF resume, with zero external browser requests. Installed 1.1.13 passed native macOS WebKit checks for scroll persistence and one-click translation of EPUB and PDF selections using cached models with downloads disabled. Windows alignment passed a replay of real CLI output with the legacy width policy at three sizes. Native Windows confirmation remains pending. Books, selections, caches and screenshots from these tests stay local.
+
 ## 1.2.0b10 — 导入副本说明 / Import copy information
 
 2026-11-08，macOS 本地验证。Python 3.11 / 3.14 各 139 项测试通过；实际安装版 1.1.11 的 11 项专项测试通过。

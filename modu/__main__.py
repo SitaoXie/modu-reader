@@ -32,6 +32,8 @@ def main():
     )
     parser.add_argument("--library", type=Path, help=tr("独立书库目录，亦可设置 MODU_HOME"))
     parser.add_argument("--shelf", action="store_true", help=tr("打开书架，不自动续读"))
+    parser.add_argument("--web", action="store_true", help=tr("打开 Web 阅读视图，保留 EPUB 和 PDF 排版"))
+    parser.add_argument("--browser", action="store_true", help=tr("在浏览器中打开 Web 阅读视图"))
     parser.add_argument("--import-only", action="store_true", help=tr("导入后退出，不打开界面"))
     parser.add_argument("--list", action="store_true", help=tr("列出书架并退出"))
     parser.add_argument("--version", action="version", version=f"MODU {__version__}")
@@ -79,6 +81,11 @@ def main():
     if args.import_only:
         if failures:
             raise SystemExit(1)
+        return
+    if args.web or args.browser:
+        from .web_reader import run
+
+        run(library, target, shelf=args.shelf, browser=args.browser)
         return
     if not sys.stdout.isatty():
         parser.exit(2, tr("请在交互式终端运行 modu；批量导入可使用 --import-only。\n"))

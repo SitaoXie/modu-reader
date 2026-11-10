@@ -10,6 +10,8 @@ LANGUAGES = ("zh", "en")
 
 # Chinese source strings are message IDs; templates format only named values.
 ENGLISH = {
+    "打开 Web 阅读视图，保留 EPUB 和 PDF 排版": "Open the Web reader with EPUB and PDF layouts",
+    "在浏览器中打开 Web 阅读视图": "Open the Web reader in a browser",
     "归档 a": "Archive a",
     "恢复 a": "Restore a",
     "删除 d": "Delete d",

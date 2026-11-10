@@ -116,7 +116,8 @@ class Library:
             c.execute("UPDATE books SET archived=? WHERE id=?", (int(archived), book_id))
             if archived:
                 c.execute(
-                    "DELETE FROM settings WHERE key='last_book' AND value=?", (json.dumps(book_id),)
+                    "DELETE FROM settings WHERE key IN ('last_book', 'web:last_book') AND value=?",
+                    (json.dumps(book_id),),
                 )
 
     def delete_book(self, book_id):
@@ -150,8 +151,12 @@ class Library:
                     c.execute("DELETE FROM bookmarks WHERE book_id=?", (book_id,))
                     c.execute("DELETE FROM books WHERE id=?", (book_id,))
                     c.execute(
-                        "DELETE FROM settings WHERE key='last_book' AND value=?",
+                        "DELETE FROM settings WHERE key IN ('last_book', 'web:last_book') AND value=?",
                         (json.dumps(book_id),),
+                    )
+                    c.execute(
+                        "DELETE FROM settings WHERE key IN (?, ?, ?)",
+                        (f"web:position:{book_id}", f"web:marks:{book_id}", f"translation_target:{book_id}"),
                     )
             except Exception:
                 for path, staged in reversed(moved):

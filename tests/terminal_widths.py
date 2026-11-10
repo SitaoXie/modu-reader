@@ -18,6 +18,8 @@ class WidthVariantScreen(pyte.Screen):
         super().__init__(columns, lines)
 
     def terminal_width(self, char):
+        if self.width_model == "single-cell-joiner" and char == "\u2060":
+            return 1
         width = DEFAULT_WIDTH(char)
         if (
             self.width_model == "narrow-punctuation"
@@ -37,6 +39,7 @@ class WidthVariantScreen(pyte.Screen):
         # pyte 0.8 stops an entire draw chunk at a zero-cell, non-combining
         # format character. U+2060 is invisible and must not discard the text
         # after it. Pixel tests still replay the original, unmodified bytes.
-        data = data.replace("\u2060", "")
+        if self.width_model != "single-cell-joiner":
+            data = data.replace("\u2060", "")
         with patch("pyte.screens.wcwidth", self.terminal_width):
             return super().draw(data)

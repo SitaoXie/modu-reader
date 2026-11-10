@@ -9,6 +9,7 @@ from rich.style import Style
 from textual._compositor import LayoutUpdate, ChopsUpdate
 from textual.geometry import Region
 from textual.strip import Strip
+from modu import terminal_render
 from modu.terminal_render import anchor_update
 from tests.terminal_widths import WidthVariantScreen
 
@@ -76,6 +77,22 @@ def test_punctuation_guard_preserves_source_and_cell_width():
     assert "Latin, punctuation." in guarded
     assert "e\u0301" in guarded
     assert guarded_text.cache_info().maxsize == 1024
+
+
+@pytest.mark.parametrize("kind", ["full", "partial"])
+def test_windows_uses_no_joiners_when_terminal_counts_them_as_cells(kind, monkeypatch):
+    # The same rendered frame puts the first letter a column late when the
+    # terminal assigns a cell to the guard after the opening punctuation.
+    frame = anchor_update(update(kind))
+    monkeypatch.setattr(terminal_render, "USE_PUNCTUATION_GUARD", True)
+    broken = paint(frame, "single-cell-joiner")
+    assert broken.buffer[1][16 + cell_len("“")].data == "\u2060"
+
+    monkeypatch.setattr(terminal_render, "USE_PUNCTUATION_GUARD", False)
+    fixed = paint(frame, "single-cell-joiner")
+    assert fixed.buffer[1] == paint(frame, "standard").buffer[1]
+    assert "“灯亮了，出发吧。”" in fixed.display[1]
+    assert fixed.buffer[1][50].bg == "252a2d"
 
 
 def test_decoder_keeps_text_after_zero_cell_format_character():

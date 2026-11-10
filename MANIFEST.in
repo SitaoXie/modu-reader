@@ -1,6 +1,7 @@
 include LICENSE README.md README.en.md pyproject.toml uv.lock .gitignore
 include CONTRIBUTING.md SECURITY.md THIRD_PARTY_NOTICES.md CHANGELOG.md
 recursive-include modu *.py *.tcss
+include modu/web.html modu/web.css modu/web.js
 recursive-include tests *.py
 include tests/acceptance_pixels.cjs
 include tests/acceptance_mouse.cjs

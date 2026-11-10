@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>墨读 MODU</title>
+<link rel="stylesheet" href="web.css">
+<script src="web.js" type="module"></script>
+</head>
+<body>
+<header class="brand">
+  <button id="shelf-button" class="wordmark">墨读 MODU</button>
+  <span id="tagline"></span>
+  <nav>
+    <button id="import-button" data-label="import"></button>
+    <button id="theme-button" data-label="theme"></button>
+    <button id="settings-button" data-label="settings"></button>
+  </nav>
+  <input type="file" id="import-file" accept=".epub,.pdf,.txt,.md,.markdown" hidden>
+</header>
+<main id="shelf" class="shelf">
+  <div class="shelf-heading"><h1 data-label="shelf"></h1><button id="archive-toggle" data-label="archived"></button></div>
+  <p class="muted" id="shelf-caption"></p>
+  <div id="books"></div>
+</main>
+<main id="reader" hidden>
+  <div class="bookbar">
+    <button id="back-button" data-label="back"></button>
+    <strong id="book-title"></strong>
+    <button id="toc-button" aria-expanded="true" data-label="contents"></button>
+    <button id="marks-button" data-label="marks"></button>
+  </div>
+  <div class="reading">
+    <aside id="sidebar">
+      <h2 data-label="contents"></h2>
+      <div id="toc"></div>
+    </aside>
+    <section id="viewport">
+      <iframe id="book-frame" sandbox="allow-same-origin" hidden></iframe>
+      <div id="pdf-view" hidden></div>
+      <div id="reader-state" hidden></div>
+    </section>
+  </div>
+  <footer>
+    <button id="previous" data-label="previous"></button>
+    <span id="progress" aria-live="polite"></span>
+    <div class="footer-actions">
+      <button id="mark-button" data-label="mark"></button>
+      <button id="next" data-label="next"></button>
+    </div>
+  </footer>
+</main>
+<button id="selection" data-label="translate" hidden></button>
+<div id="toast" role="status" hidden></div>
+<dialog id="dialog">
+  <form method="dialog">
+    <div class="dialog-title"><h2 id="dialog-title"></h2><button value="cancel" aria-label="Close">×</button></div>
+  </form>
+  <div id="dialog-body"></div>
+</dialog>
+</body>
+</html>

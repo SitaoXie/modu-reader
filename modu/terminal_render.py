@@ -12,6 +12,7 @@ updates place every styled run explicitly, including padding and scrollbars.
 from __future__ import annotations
 
 from functools import lru_cache
+import sys
 import unicodedata
 
 from rich.control import Control
@@ -26,6 +27,8 @@ from textual.strip import Strip
 # book text, wrapping, search offsets and saved positions remain untouched.
 # Upstream reproducer: https://github.com/xtermjs/xterm.js/issues/6058
 PUNCTUATION_GUARD = "\u2060"
+# Legacy Windows console width mode assigns a cell even to WORD JOINER.
+USE_PUNCTUATION_GUARD = sys.platform != "win32"
 
 
 @lru_cache(maxsize=1024)
@@ -54,7 +57,8 @@ def anchored_strip(strip: Strip, x: int, y: int, console) -> str:
             # leave letters or track pixels from an earlier frame in the gap.
             output.append(Strip([Segment(" " * width, segment.style)], width).render(console))
             output.append(position)
-        rendered = Segment(guarded_text(segment.text), segment.style)
+        text = guarded_text(segment.text) if USE_PUNCTUATION_GUARD else segment.text
+        rendered = Segment(text, segment.style)
         output.append(Strip([rendered], width).render(console))
         x += width
     return "".join(output)

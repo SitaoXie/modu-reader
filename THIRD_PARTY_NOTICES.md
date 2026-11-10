@@ -39,3 +39,9 @@ Chinese/English text in the isolated-terminal product images is original project
 使用者提供的桌面预览包含第三方应用界面与公版原文，不标为项目原创。
 
 User-supplied desktop previews include third-party application UI and public-domain text, not project-original material.
+
+Web 阅读的可选依赖包括 pywebview 6.2.1（BSD-3-Clause）、CTranslate2 4.8.5（MIT）和 SentencePiece 0.2.3（Apache-2.0）。PDF 渲染器为 PDF.js 6.5.438（Apache-2.0），首次使用时从 npm 官方发行包安装，经 SHA-512 校验后保存本地，其许可文件随本地资源保留。翻译模型由 Argos Translate 项目的模型分发端提供，按需下载至本地。源码和 wheel 不包含渲染器、模型或用户书籍。
+
+Optional Web reading dependencies include pywebview 6.2.1 (BSD-3-Clause), CTranslate2 4.8.5 (MIT) and SentencePiece 0.2.3 (Apache-2.0). PDF.js 6.5.438 (Apache-2.0) is installed from its official npm distribution on first use and verified with SHA-512. License files remain with the local runtime. Argos Translate models are downloaded on demand. The source and wheel contain no renderer assets, models or user books.
+
+[PDF.js](https://github.com/mozilla/pdf.js) · [Argos Translate](https://github.com/argosopentech/argos-translate)
