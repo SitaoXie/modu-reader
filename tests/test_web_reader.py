@@ -63,6 +63,7 @@ def test_web_reader_uses_private_capability_and_same_origin(tmp_path):
             assert response.status == 200
             assert b"&lt;script&gt;original text&lt;/script&gt;" in response.read()
             assert "sandbox allow-same-origin" in response.headers["Content-Security-Policy"]
+            assert "script-src 'none'" in response.headers["Content-Security-Policy"]
             assert response.headers["Cache-Control"] == "no-store"
 
         spot = {"index": 0, "scroll": 0.4}
@@ -73,6 +74,11 @@ def test_web_reader_uses_private_capability_and_same_origin(tmp_path):
         assert library.setting("web:last_book") is None
 
         headers["Origin"] = origin
+        with fetch(route + "/position", headers=headers, data=data) as response:
+            assert response.status == 200
+        assert library.setting(f"web:position:{book}") == spot
+        spot["offset"] = 0.8
+        data = json.dumps(spot).encode()
         with fetch(route + "/position", headers=headers, data=data) as response:
             assert response.status == 200
         with fetch(route + "/mark", headers=headers, data=data) as response:

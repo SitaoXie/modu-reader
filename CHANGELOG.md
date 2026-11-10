@@ -1,5 +1,11 @@
 # 更新记录 / Changelog
 
+## 1.3.0b3 — Web 连续翻页 / Continuous Web paging
+
+左右翻页按当前视口推进，读完本节或本张 PDF 原页才跨页。短末屏从上一屏之后开始，向左可回到刚读过的页首。
+
+Left and right turn one visible screen at a time. The reader finishes the current section or PDF sheet before moving on. Short final screens start at the first unread line, and Back returns to the previous screen.
+
 ## 1.3.0b2 — 侧边浏览器入口 / Side browser entry
 
 `modu --serve` 提供固定的本机阅读地址 `http://127.0.0.1:8765`，可用 `--port` 更改端口。

@@ -1,3 +1,171 @@
+// Turn one visible screen at a time while keeping the document's own layout.
+const EPSILON = 1;
+
+function caretAt(doc, x, y) {
+  if (doc.caretRangeFromPoint) return doc.caretRangeFromPoint(x, y);
+  const point = doc.caretPositionFromPoint?.(x, y);
+  if (!point) return null;
+  const range = doc.createRange();
+  range.setStart(point.offsetNode, point.offset);
+  range.collapse(true);
+  return range;
+}
+
+class ScreenPages {
+  constructor(node, surface, tailParent) {
+    this.node = node;
+    this.surface = surface;
+    this.doc = node.ownerDocument;
+    node.style.scrollBehavior = "auto";
+    node.style.overflowAnchor = "none";
+    if (tailParent) {
+      this.tail = this.doc.createElement("div");
+      this.tail.setAttribute("aria-hidden", "true");
+      this.tail.style.cssText = "display:block!important;flex:none!important;height:0;min-height:0!important;max-height:none!important;margin:0!important;padding:0!important;border:0!important;clear:both;visibility:hidden;pointer-events:none";
+      tailParent.append(this.tail);
+    }
+    this.layout = this.geometry;
+  }
+
+  get geometry() {
+    return `${this.node.clientWidth}:${this.node.clientHeight}`;
+  }
+
+  get top() {
+    return Math.max(0, this.node.scrollTop);
+  }
+
+  get height() {
+    return this.node.clientHeight;
+  }
+
+  get extent() {
+    return Math.max(this.height, this.node.scrollHeight - (this.tail?.offsetHeight || 0));
+  }
+
+  get end() {
+    return this.cut ?? Math.min(this.extent, this.top + this.height);
+  }
+
+  get position() {
+    const normalLimit = Math.max(1, this.extent - this.height);
+    return {
+      scroll: Math.min(1, this.top / normalLimit),
+      offset: this.extent ? Math.min(1, this.top / this.extent) : 0,
+    };
+  }
+
+  get viewport() {
+    if (this.node === this.doc.scrollingElement) {
+      return {top: 0, left: 0, width: this.node.clientWidth};
+    }
+    const rect = this.node.getBoundingClientRect();
+    return {top: rect.top + this.node.clientTop, left: rect.left + this.node.clientLeft, width: this.node.clientWidth};
+  }
+
+  textAt(y) {
+    const {left, width} = this.viewport;
+    const ranges = [];
+    for (const ratio of [0.03, 0.17, 0.37, 0.56, 0.77, 0.94]) {
+      const range = caretAt(this.doc, left + width * ratio, y);
+      if (range?.startContainer.nodeType !== 3) continue;
+      const rect = range.getBoundingClientRect();
+      if (rect.height > 0) ranges.push({range, rect});
+    }
+    return ranges;
+  }
+
+  setTop(value) {
+    const extent = this.extent;
+    const top = Math.max(0, Math.min(Math.round(value), extent - 1));
+    if (this.tail) {
+      // Leave enough trailing space for a short final screen to start at its
+      // actual boundary instead of clamping back onto the previous screen.
+      this.tail.style.setProperty("height", Math.max(0, Math.ceil(top + this.height - extent)) + "px", "important");
+    }
+    this.node.scrollTop = top;
+  }
+
+  prepare(end) {
+    this.surface.style.clipPath = "";
+    const top = this.top;
+    const height = this.height;
+    const {top: viewportTop} = this.viewport;
+    const bottom = viewportTop + height;
+    let edge = Math.min(this.extent, top + height);
+    if (end !== undefined) {
+      edge = Math.min(edge, end);
+    } else if (edge < this.extent - EPSILON) {
+      // Chromium can round a half-pixel probe onto the adjacent viewport.
+      for (const {rect} of this.textAt(bottom - 2)) {
+        if (rect.top < bottom && rect.bottom > bottom + 0.05) {
+          const lineTop = Math.floor(top + rect.top - viewportTop);
+          if (lineTop > top + EPSILON) edge = Math.min(edge, lineTop);
+        }
+      }
+    }
+    this.pageTop = top;
+    this.cut = edge;
+    const clip = edge < this.extent ? Math.max(0, Math.ceil(top + height - edge)) : 0;
+    this.surface.style.clipPath = clip ? `inset(0 0 ${clip}px 0)` : "";
+    // A retained caret locates the first displayed line after a width change.
+    const first = this.textAt(viewportTop + 1).find(({rect}) => rect.bottom > viewportTop);
+    this.anchor = first && {range: first.range, inset: first.rect.top - viewportTop};
+    this.layout = this.geometry;
+  }
+
+  show(top, end) {
+    this.setTop(top);
+    this.prepare(end);
+  }
+
+  restore(position, endRatio) {
+    const extent = this.extent;
+    const top = Number.isFinite(position.offset)
+      ? position.offset * extent
+      : position.scroll * Math.max(0, extent - this.height);
+    this.show(top, endRatio === undefined ? undefined : Math.round(endRatio * extent));
+  }
+
+  previous() {
+    const end = this.top;
+    this.setTop(Math.max(0, end - this.height));
+    const {top: viewportTop} = this.viewport;
+    let start = this.top;
+    if (start > 0) {
+      for (const {rect} of this.textAt(viewportTop + 0.5)) {
+        if (rect.top < viewportTop && rect.bottom > viewportTop) {
+          start = Math.max(start, Math.ceil(this.top + rect.bottom - viewportTop));
+        }
+      }
+    }
+    this.show(Math.min(start, Math.max(0, end - 1)), end);
+  }
+
+  releaseOnScroll() {
+    if (this.pageTop === undefined || Math.abs(this.top - this.pageTop) <= EPSILON) return false;
+    this.cut = this.anchor = this.pageTop = undefined;
+    this.surface.style.clipPath = "";
+    return true;
+  }
+
+  resize(position) {
+    if (this.layout === this.geometry) return false;
+    if (this.anchor?.range.startContainer.isConnected) {
+      const rect = this.anchor.range.getBoundingClientRect();
+      this.show(this.top + rect.top - this.viewport.top - this.anchor.inset);
+    } else {
+      this.restore(position);
+    }
+    return true;
+  }
+
+  dispose() {
+    this.tail?.remove();
+    this.surface.style.clipPath = "";
+  }
+}
+
 const $ = id => document.getElementById(id);
 const endpoint = path => new URL(path, import.meta.url);
 const frame = $("book-frame");
@@ -59,7 +227,8 @@ let pdfGeneration = 0;
 let pdfDocument;
 let pdfEngine;
 let pdfTask;
-let scrollLocked = false;
+let pager;
+const pageHistory = [];
 let sidebarOpen = innerWidth > 720;
 
 function label(key) {
@@ -195,7 +364,7 @@ function savePosition() {
 }
 
 function isReady() {
-  return book?.format === "pdf" ? Boolean(pdfDocument) && !$("pdf-view").hidden : !frame.hidden && !pendingFrame;
+  return Boolean(book && pager && !pendingFrame);
 }
 
 function rememberPosition() {
@@ -218,7 +387,8 @@ function resetReader() {
   pdfView.replaceChildren();
   pdfTask?.destroy().catch(() => {});
   pdfTask = pdfDocument = undefined;
-  scrollLocked = false;
+  clearPager();
+  pageHistory.length = 0;
   return bookGeneration;
 }
 
@@ -281,10 +451,12 @@ function total() {
 }
 
 function boundedSpot(value) {
-  return {
+  const position = {
     index: Number.isInteger(value.index) ? Math.max(0, Math.min(total() - 1, value.index)) : 0,
     scroll: Number.isFinite(value.scroll) ? Math.max(0, Math.min(1, value.scroll)) : 0,
   };
+  if (Number.isFinite(value.offset)) position.offset = Math.max(0, Math.min(1, value.offset));
+  return position;
 }
 
 function renderToc() {
@@ -311,8 +483,8 @@ function updateProgress() {
   const percent = (spot.index + (book.format === "pdf" ? 1 : spot.scroll)) / count;
   $("progress").textContent = (locale ? unit + " " : "") + (spot.index + 1) + " / " + count
     + (locale ? "" : " " + unit) + " · " + Math.round(percent * 100) + "%";
-  $("previous").disabled = spot.index <= 0;
-  $("next").disabled = spot.index >= count - 1;
+  $("previous").disabled = !pager || (spot.index === 0 && pager.top <= 1);
+  $("next").disabled = !pager || (spot.index === count - 1 && pager.end >= pager.extent - 1);
   let current;
   const view = frame.contentDocument?.scrollingElement;
   for (const entry of $("toc").children) {
@@ -324,13 +496,35 @@ function updateProgress() {
   current?.setAttribute("aria-current", "location");
 }
 
-function jump(value, fragment = "") {
+function clearPager() {
+  pager?.dispose();
+  pager = undefined;
+}
+
+function updatePosition() {
+  if (!pager || pager.layout !== pager.geometry) return;
+  if (pager.releaseOnScroll()) pageHistory.length = 0;
+  Object.assign(spot, pager.position);
+  updateProgress();
+  rememberPosition();
+}
+
+function jump(value, fragment = "", turning = false) {
   if (!book || !total()) return;
+  const sameSection = spot.index === value.index;
+  if (!turning) pageHistory.length = 0;
   spot = boundedSpot(value);
   selection = "";
   $("selection").hidden = true;
   if (book.format === "pdf") {
-    renderPdf().catch(() => {
+    if (sameSection && pager) {
+      pager.restore(spot, value.endRatio);
+      updatePosition();
+      return;
+    }
+    clearPager();
+    updateProgress();
+    renderPdf(value.endRatio).catch(() => {
       pdfView.hidden = true;
       readerState(label("pdfError"));
     });
@@ -340,13 +534,18 @@ function jump(value, fragment = "") {
   const route = book.format === "epub" ? "epub/" + name.split("/").map(encodeURIComponent).join("/") : "text/" + spot.index;
   const url = endpoint(bookPath() + "/" + route);
   if (fragment) url.hash = encodeURIComponent(fragment);
-  if (!frame.hidden && frame.contentDocument && frame.contentWindow.location.pathname === url.pathname) {
-    if (fragment) frameAnchor(frame.contentDocument, fragment)?.scrollIntoView();
-    else setScroll(frame.contentDocument.scrollingElement, spot.scroll);
-    onFrameScroll();
+  if (pager && frame.contentDocument && frame.contentWindow.location.pathname === url.pathname) {
+    if (fragment) {
+      frameAnchor(frame.contentDocument, fragment)?.scrollIntoView();
+      pager.prepare();
+    } else {
+      pager.restore(spot, value.endRatio);
+    }
+    updatePosition();
     return;
   }
-  pendingFrame = {url: url.pathname, scroll: spot.scroll, fragment};
+  clearPager();
+  pendingFrame = {url: url.pathname, position: spot, fragment, endRatio: value.endRatio};
   clearInterval(frameObserver);
   frame.src = url;
   frame.hidden = false;
@@ -354,22 +553,11 @@ function jump(value, fragment = "") {
   updateProgress();
 }
 
-function setScroll(node, ratio) {
-  node.scrollTop = ratio * Math.max(0, node.scrollHeight - node.clientHeight);
-}
-
-function getScroll(node) {
-  const height = node.scrollHeight - node.clientHeight;
-  return height <= 0 ? 0 : Math.max(0, Math.min(1, node.scrollTop / height));
-}
-
 function onFrameScroll() {
   if (!book || frame.hidden || pendingFrame) return;
   const doc = frame.contentDocument;
   if (!doc || currentFrameIndex() < 0) return;
-  spot.scroll = getScroll(doc.scrollingElement);
-  updateProgress();
-  rememberPosition();
+  updatePosition();
 }
 
 function frameAnchor(doc, fragment) {
@@ -396,9 +584,16 @@ frame.addEventListener("load", () => {
   if (index >= 0) spot.index = index;
   const previous = pendingFrame;
   pendingFrame = undefined;
-  if (previous?.url === contentWindow.location.pathname) {
-    if (previous.fragment) frameAnchor(doc, previous.fragment)?.scrollIntoView();
-    else setScroll(doc.scrollingElement, previous.scroll);
+  clearPager();
+  if (doc.scrollingElement) {
+    pager = new ScreenPages(doc.scrollingElement, frame, doc.body);
+    if (previous?.url === contentWindow.location.pathname && !previous.fragment) {
+      pager.restore(previous.position, previous.endRatio);
+    } else {
+      if (previous?.fragment) frameAnchor(doc, previous.fragment)?.scrollIntoView();
+      else if (!previous) pageHistory.length = 0;
+      pager.prepare();
+    }
   }
   doc.addEventListener("scroll", onFrameScroll, {passive: true});
   doc.addEventListener("keydown", keyboard);
@@ -412,7 +607,7 @@ frame.addEventListener("load", () => {
     if (selected && selected.toString().trim() !== selection) {
       detectSelection(doc, frame.getBoundingClientRect());
     }
-    if (doc.scrollingElement && getScroll(doc.scrollingElement) !== spot.scroll) onFrameScroll();
+    if (pager && pager.position.offset !== spot.offset) onFrameScroll();
   }, 160);
 });
 
@@ -441,7 +636,7 @@ async function loadPdf(generation, position) {
   }
 }
 
-async function renderPdf() {
+async function renderPdf(endRatio) {
   const generation = ++pdfGeneration;
   const current = {...spot};
   const page = await pdfDocument.getPage(current.index + 1);
@@ -467,26 +662,44 @@ async function renderPdf() {
   const layer = new pdfEngine.TextLayer({textContentSource: page.streamTextContent(), container: text, viewport});
   await layer.render();
   if (generation !== pdfGeneration) return;
-  scrollLocked = true;
+  clearPager();
   pdfView.replaceChildren(wrap);
   pdfView.hidden = false;
   $("reader-state").hidden = true;
-  setScroll(pdfView, current.scroll);
-  scrollLocked = false;
-  spot.scroll = getScroll(pdfView);
-  updateProgress();
-  rememberPosition();
+  pager = new ScreenPages(pdfView, pdfView, pdfView);
+  pager.restore(current, endRatio);
+  updatePosition();
 }
 
 pdfView.addEventListener("scroll", () => {
-  if (scrollLocked || !book || pdfView.hidden) return;
-  spot.scroll = getScroll(pdfView);
-  rememberPosition();
+  if (book?.format === "pdf" && !pdfView.hidden) updatePosition();
 }, {passive: true});
 
 function navigate(delta) {
-  if (isReady() && spot.index + delta >= 0 && spot.index + delta < total()) {
-    jump({index: spot.index + delta, scroll: 0});
+  if (!isReady()) return;
+  if (pager.resize(spot) || pager.releaseOnScroll()) pageHistory.length = 0;
+  selection = "";
+  $("selection").hidden = true;
+  if (delta < 0) {
+    const previous = pageHistory.pop();
+    if (previous) jump(previous, "", true);
+    else if (pager.top > 1) {
+      pager.previous();
+      updatePosition();
+    } else if (spot.index > 0) jump({index: spot.index - 1, scroll: 1}, "", true);
+    return;
+  }
+  if (pager.cut === undefined) pager.prepare();
+  const next = pager.end;
+  const moreHere = next < pager.extent - 1 && next > pager.top + 1;
+  if (!moreHere && spot.index >= total() - 1) return;
+  pageHistory.push({index: spot.index, ...pager.position, endRatio: next / pager.extent});
+  if (pageHistory.length > 512) pageHistory.shift();
+  if (moreHere) {
+    pager.show(next);
+    updatePosition();
+  } else {
+    jump({index: spot.index + 1, scroll: 0}, "", true);
   }
 }
 
@@ -605,9 +818,17 @@ function marks() {
 }
 
 function keyboard(event) {
-  if (event.ctrlKey || event.metaKey || event.altKey || dialog.open || ["INPUT", "SELECT", "TEXTAREA", "BUTTON"].includes(event.target.tagName)) return;
+  const tag = event.target.tagName;
+  if (event.ctrlKey || event.metaKey || event.altKey || dialog.open || ["INPUT", "SELECT", "TEXTAREA"].includes(tag)) return;
+  const direction = ["ArrowRight", "PageDown"].includes(event.key) || (event.key === " " && tag !== "BUTTON") ? 1
+    : ["ArrowLeft", "PageUp"].includes(event.key) ? -1 : 0;
+  if (direction && isReady()) {
+    event.preventDefault();
+    navigate(direction);
+    return;
+  }
+  if (tag === "BUTTON") return;
   const actions = {
-    ArrowLeft: () => navigate(-1), ArrowRight: () => navigate(1),
     c: () => $("toc-button").click(), b: addMark, s: settings,
     t: () => $("theme-button").click(),
   };
@@ -661,7 +882,11 @@ $("import-file").onchange = async event => {
 let resizeTimer;
 new ResizeObserver(() => {
   clearTimeout(resizeTimer);
-  if (pdfDocument && !pdfView.hidden) resizeTimer = setTimeout(() => renderPdf().catch(report), 180);
+  if (!pager || pager.layout === pager.geometry) return;
+  pageHistory.length = 0;
+  if (pdfDocument && !pdfView.hidden) {
+    resizeTimer = setTimeout(() => renderPdf().catch(report), 180);
+  } else if (pager.resize(spot)) updatePosition();
 }).observe($("viewport"));
 addEventListener("pagehide", savePosition);
 try {

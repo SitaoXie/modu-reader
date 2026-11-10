@@ -73,6 +73,7 @@ def allowed(name: str) -> bool:
         "examples/first-pages.en.txt",
         "tests/acceptance_pixels.cjs",
         "tests/acceptance_mouse.cjs",
+        "tests/acceptance_web_paging.cjs",
         "tools/render_product.cjs",
         "modu/web.html",
         "modu/web.css",

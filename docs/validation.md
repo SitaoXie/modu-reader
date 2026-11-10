@@ -1,5 +1,19 @@
 # 实测记录 / Validation record
 
+## 1.3.0b3 — Web 连续翻页 / Continuous Web paging
+
+Python 3.11 和 3.14 各通过 155 项测试。真实 Chromium 与 macOS WebKit 使用两节共 117 行的原创 EPUB 验证 12 屏顺序翻页、11 次精确回翻与短末屏。旧版对照从第 11 行跳到第 81 行。实际安装版 1.1.15 通过同一浏览器回归和缩放检查。
+
+本地实际 EPUB 连续右翻 12 屏，保持在同一节并按上一屏末尾衔接。缩放后使用 PgDn 继续。高于视口的 PDF 原页先分两屏显示，再进入下一张原页。WebKit 验证正文内键盘事件，同时用测试脚本确认书籍页面的 CSP 阻止执行。
+
+English: 155 tests passed on each of Python 3.11 and 3.14. A generated 117-line EPUB exercises 12 screens and 11 exact reverse turns in Chromium and macOS WebKit. The previous build skipped from line 11 to line 81. Installed 1.1.15 passed the browser regression including resize. Local EPUB and PDF checks confirm adjacent screens and original-page boundaries. WebKit dispatches the reader's keyboard listener while publication scripts remain blocked by CSP.
+
+使用已安装的可选 Playwright 工具复现 / Reproduce with optional Playwright tools:
+
+```sh
+node tests/acceptance_web_paging.cjs --python .venv/bin/python --modules ./test-artifacts/pixel-tools/node_modules --browser "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --work ./test-artifacts/web-paging
+```
+
 ## 1.3.0b2 — 侧边浏览器入口 / Side browser entry
 
 实际安装版 1.1.14 通过固定端口、自定义端口、端口冲突提示与本机监听检查。在 460 像素宽的 Chromium 中，从根地址打开 EPUB、跳转目录并渲染 PDF 原页和文字层。地址在翻页时保持不变。回归测试覆盖跨站请求、跨端口请求、外部嵌入、错误 Host 与无会话路径的 API 请求。

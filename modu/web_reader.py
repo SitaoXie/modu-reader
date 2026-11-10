@@ -29,6 +29,12 @@ WEB_FILES = {
     "web.css": "text/css; charset=utf-8",
     "web.js": "text/javascript; charset=utf-8",
 }
+# WebKit needs the sandbox scripting flag to dispatch the reader window's
+# keyboard listeners. The publication's own scripts remain blocked by CSP.
+BOOK_SANDBOX = (
+    "script-src 'none'; base-uri 'none'; form-action 'none'; "
+    "frame-ancestors 'self'; sandbox allow-same-origin allow-scripts"
+)
 EPUB_BRIDGE = """
 :root { color-scheme: var(--modu-scheme, dark); background: var(--modu-bg, #121416); }
 body { background: transparent; color: var(--modu-fg, #ddd6c8); overflow-wrap: break-word; }
@@ -45,7 +51,13 @@ def location(value):
         raise ValueError("Invalid location")
     if type(scroll) not in (float, int) or not 0 <= scroll <= 1:
         raise ValueError("Invalid location")
-    return {"index": index, "scroll": scroll}
+    result = {"index": index, "scroll": scroll}
+    if "offset" in value:
+        offset = value["offset"]
+        if type(offset) not in (float, int) or not 0 <= offset <= 1:
+            raise ValueError("Invalid location")
+        result["offset"] = offset
+    return result
 
 
 def chapter_json(chapter):
@@ -316,14 +328,14 @@ class Handler(BaseHTTPRequestHandler):
             csp = (
                 f"default-src 'none'; style-src 'unsafe-inline' {base}; "
                 f"img-src {base}; font-src {base}; media-src {base}; "
-                "base-uri 'none'; form-action 'none'; frame-ancestors 'self'; sandbox allow-same-origin"
+                + BOOK_SANDBOX
             )
             return self.send_data(data, mime, csp=csp)
         if asset.startswith("text/") and source.suffix in {".txt", ".md", ".markdown"}:
             return self.send_data(
                 reader.text_chapter(identifier, int(asset.removeprefix("text/"))),
                 "text/html; charset=utf-8",
-                csp="default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'self'; sandbox allow-same-origin",
+                csp="default-src 'none'; style-src 'unsafe-inline'; " + BOOK_SANDBOX,
             )
         raise FileNotFoundError
 
