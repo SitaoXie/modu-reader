@@ -62,7 +62,7 @@ These workflows need no dedicated integration. MODU does not read AI conversatio
 
 Antigravity also documents a side-panel terminal. Its native interaction has not been tested here, so it is listed as “possible, untested,” rather than verified support. [Official documentation](https://antigravity.google/docs/features#integrated-terminal)
 
-**Status: 1.3.0b1 open-source release candidate.** Locally validated on macOS, including user confirmation of right-rail alignment and hiding in the target embedded terminal. Windows/Linux code paths and CI definitions are included, but native terminal acceptance is pending. The same commands can be tried in Windows Terminal with PowerShell. Use a terminal with mouse and truecolor support. The interface supports English and Simplified Chinese; book text stays in its original language.
+**Status: 1.3.0b2 open-source release candidate.** Locally validated on macOS, including user confirmation of right-rail alignment and hiding in the target embedded terminal. Windows/Linux code paths and CI definitions are included, but native terminal acceptance is pending. The same commands can be tried in Windows Terminal with PowerShell. Use a terminal with mouse and truecolor support. The interface supports English and Simplified Chinese; book text stays in its original language.
 
 ## Interface language
 
@@ -91,7 +91,10 @@ modu --library ./private-library
 uv tool install --upgrade "modu-reader[webview,translation] @ git+https://github.com/SitaoXie/modu-reader"
 modu --web
 modu --web "My book.epub"
+modu --serve
 ```
+
+Run `modu --serve` and open [http://127.0.0.1:8765](http://127.0.0.1:8765) in the browser beside your code. The server accepts connections from this computer. Press `Ctrl+C` to stop it. Use `modu --serve --port 8766` if the default port is occupied.
 
 The Web reader shares the shelf and themes and keeps its own reading positions and bookmarks. EPUB preserves the book's navigation, styles and bundled images. PDF renders the original pages and provides a selectable text layer when the file has text. Choose **Download renderer** on first PDF use to install the local PDF.js runtime. Use `modu --browser` to open the same reader in a browser. On macOS and Windows, the optional native window uses WebKit or WebView2.
 

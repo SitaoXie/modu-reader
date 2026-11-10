@@ -62,7 +62,7 @@ modu
 
 Antigravity 官方文档也说明了侧栏终端，但本项目尚未完成其原生交互验收，暂列“可尝试、未实测”，不列为已验证支持。[官方说明](https://antigravity.google/docs/features#integrated-terminal)
 
-**状态：1.3.0b1 开源候选版。** macOS 已本地验证，包括用户在目标内置终端确认右侧轨道对齐和隐藏正常。Windows/Linux 提供跨平台代码和 CI 配置，原生终端体验尚未验收。Windows 可在 Windows Terminal + PowerShell 中尝试相同命令；需要支持鼠标和真彩色的终端。界面支持简体中文和英文；书籍正文保留原文。
+**状态：1.3.0b2 开源候选版。** macOS 已本地验证，包括用户在目标内置终端确认右侧轨道对齐和隐藏正常。Windows/Linux 提供跨平台代码和 CI 配置，原生终端体验尚未验收。Windows 可在 Windows Terminal + PowerShell 中尝试相同命令；需要支持鼠标和真彩色的终端。界面支持简体中文和英文；书籍正文保留原文。
 
 ## 界面语言
 
@@ -93,7 +93,10 @@ modu --library ./private-library
 uv tool install --upgrade "modu-reader[webview,translation] @ git+https://github.com/SitaoXie/modu-reader"
 modu --web
 modu --web "我的书.epub"
+modu --serve
 ```
+
+编程时可在一个终端运行 `modu --serve`，再用侧边浏览器打开 [http://127.0.0.1:8765](http://127.0.0.1:8765)。服务只接受本机连接，按 `Ctrl+C` 结束。端口被占用时可用 `modu --serve --port 8766`。
 
 Web 视图共享书架和主题，单独保存阅读位置与书签。EPUB 保留原书目录、样式和内嵌插图。PDF 按原页渲染，文件含文字层时可选中文字。首次打开 PDF 时点击「下载渲染器」安装本地 PDF.js。也可用 `modu --browser` 在浏览器打开同一视图。macOS 和 Windows 的可选原生窗口分别使用 WebKit 和 WebView2。
 

@@ -1,12 +1,41 @@
 """Exercise loopback access controls and durable Web reader state."""
 
 import json
+import re
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from urllib.parse import urlsplit
 
+import pytest
+
 from modu.library import Library
 from modu.web_reader import serve
+
+
+def test_local_entry_keeps_root_url_and_blocks_cross_origin_bootstrap(tmp_path):
+    library = Library(tmp_path / "library")
+    with serve(library, port=0) as url:
+        assert urlsplit(url).hostname == "127.0.0.1"
+        assert urlsplit(url).path == "/"
+        request = Request(url, headers={"Sec-Fetch-Site": "none", "Sec-Fetch-Dest": "document"})
+        with urlopen(request, timeout=3) as response:
+            assert response.geturl() == url
+            assert response.headers["Cache-Control"] == "no-store"
+            module = re.search(rb'src="(/[\w-]+/web\.js)"', response.read())[1].decode()
+
+        with urlopen(url + module[1:].removesuffix("web.js") + "api/shelf", timeout=3) as response:
+            assert json.load(response)["books"] == []
+        with pytest.raises(HTTPError, match="404"):
+            urlopen(url + "api/shelf", timeout=3)
+        for headers in (
+            {"Sec-Fetch-Site": "cross-site"},
+            {"Sec-Fetch-Site": "same-site"},
+            {"Sec-Fetch-Dest": "iframe"},
+            {"Origin": "https://wrong.test"},
+            {"Host": "wrong.test"},
+        ):
+            with pytest.raises(HTTPError, match="403"):
+                urlopen(Request(url, headers=headers), timeout=3)
 
 
 def test_web_reader_uses_private_capability_and_same_origin(tmp_path):

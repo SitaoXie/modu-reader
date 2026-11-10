@@ -23,6 +23,7 @@ from .translation import LANGUAGES, TranslationError, set_target, settings_for, 
 from .web_epub import EpubBook
 from .web_pdf import PdfAssets
 
+DEFAULT_PORT = 8765
 WEB_FILES = {
     "web.html": "text/html; charset=utf-8",
     "web.css": "text/css; charset=utf-8",
@@ -241,6 +242,14 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("Host") != self.server.host:
             raise PermissionError
         path = urlsplit(self.path).path
+        if self.server.root_entry and self.command == "GET" and path == "/":
+            if (
+                self.headers.get("Sec-Fetch-Site") not in {None, "none", "same-origin"}
+                or self.headers.get("Sec-Fetch-Dest") not in {None, "document"}
+                or self.headers.get("Origin") not in {None, self.server.origin}
+            ):
+                raise PermissionError
+            return None
         if not path.startswith(self.server.prefix):
             raise FileNotFoundError
         return path[len(self.server.prefix):]
@@ -276,7 +285,13 @@ class Handler(BaseHTTPRequestHandler):
                 "frame-src 'self'; object-src 'none'; base-uri 'none'; "
                 "form-action 'none'; frame-ancestors 'none'"
             )
-            return self.send_data(Path(__file__).with_name(name).read_bytes(), WEB_FILES[name], csp=csp)
+            data = Path(__file__).with_name(name).read_bytes()
+            if route is None:
+                # Keep the visible address at /. Assets and APIs still use the
+                # per-launch session path.
+                for asset in ("web.css", "web.js"):
+                    data = data.replace(f'"{asset}"'.encode(), f'"{self.server.prefix}{asset}"'.encode())
+            return self.send_data(data, WEB_FILES[name], csp=csp)
         if route == "api/shelf":
             return self.json(reader.shelf())
         if route.startswith("pdfjs/"):
@@ -349,29 +364,30 @@ class Handler(BaseHTTPRequestHandler):
 
 
 @contextmanager
-def serve(library, book_id=None, *, shelf=False):
+def serve(library, book_id=None, *, shelf=False, port=None):
     reader = Reader(library, book_id, shelf)
-    with ThreadingHTTPServer(("127.0.0.1", 0), Handler) as server:
+    with ThreadingHTTPServer(("127.0.0.1", port or 0), Handler) as server:
         server.host = f"127.0.0.1:{server.server_port}"
         server.origin = f"http://{server.host}"
         server.prefix = f"/{secrets.token_urlsafe(24)}/"
+        server.root_entry = port is not None
         server.reader = reader
         thread = Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
-            yield server.origin + server.prefix
+            yield server.origin + ("/" if server.root_entry else server.prefix)
         finally:
             server.shutdown()
             thread.join()
 
 
-def run(library, book_id=None, *, shelf=False, browser=False):
+def run(library, book_id=None, *, shelf=False, browser=False, port=None):
     import sys
     import webbrowser
 
-    with serve(library, book_id, shelf=shelf) as url:
+    with serve(library, book_id, shelf=shelf, port=port) as url:
         native = None
-        if not browser and sys.platform in {"darwin", "win32"}:
+        if port is None and not browser and sys.platform in {"darwin", "win32"}:
             try:
                 import webview as native
             except ImportError:
@@ -384,7 +400,8 @@ def run(library, book_id=None, *, shelf=False, browser=False):
             return
         language = normalize_language(library.setting("language"))
         print(url, flush=True)
-        webbrowser.open(url)
+        if port is None:
+            webbrowser.open(url)
         print("按 Ctrl+C 结束 Web 阅读。" if language == "zh" else "Press Ctrl+C to stop Web reading.", flush=True)
         try:
             Event().wait()

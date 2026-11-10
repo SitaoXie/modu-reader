@@ -1,5 +1,11 @@
 # 更新记录 / Changelog
 
+## 1.3.0b2 — 侧边浏览器入口 / Side browser entry
+
+`modu --serve` 提供固定的本机阅读地址 `http://127.0.0.1:8765`，可用 `--port` 更改端口。
+
+`modu --serve` serves the reader at `http://127.0.0.1:8765`. Use `--port` to choose a different port.
+
 ## 1.3.0b1 — Web 阅读与划词翻译 / Web reading and selection translation
 
 - 增加 `modu --web` 和 `modu --browser`，保留 EPUB 原书样式、插图和目录，按原页渲染 PDF。

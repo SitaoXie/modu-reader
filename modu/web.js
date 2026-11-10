@@ -1,4 +1,5 @@
 const $ = id => document.getElementById(id);
+const endpoint = path => new URL(path, import.meta.url);
 const frame = $("book-frame");
 const pdfView = $("pdf-view");
 const dialog = $("dialog");
@@ -83,7 +84,7 @@ async function api(path, data, extra = {}) {
   const options = data === undefined ? {} : {
     method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(data),
   };
-  const response = await fetch(path, {...options, ...extra});
+  const response = await fetch(endpoint(path), {...options, ...extra});
   const value = await response.json();
   if (!response.ok) throw new Error(value.error);
   return value;
@@ -187,7 +188,7 @@ function savePosition() {
   if (!book || !isReady()) return;
   const item = book;
   const data = {...spot};
-  fetch(bookPath(item) + "/position", {
+  fetch(endpoint(bookPath(item) + "/position"), {
     method: "POST", headers: {"Content-Type": "application/json"},
     body: JSON.stringify(data), keepalive: true,
   }).catch(() => {});
@@ -337,7 +338,7 @@ function jump(value, fragment = "") {
   }
   const name = book.chapters[spot.index].name;
   const route = book.format === "epub" ? "epub/" + name.split("/").map(encodeURIComponent).join("/") : "text/" + spot.index;
-  const url = new URL(bookPath() + "/" + route, location.href);
+  const url = endpoint(bookPath() + "/" + route);
   if (fragment) url.hash = encodeURIComponent(fragment);
   if (!frame.hidden && frame.contentDocument && frame.contentWindow.location.pathname === url.pathname) {
     if (fragment) frameAnchor(frame.contentDocument, fragment)?.scrollIntoView();
@@ -377,7 +378,7 @@ function frameAnchor(doc, fragment) {
 
 function currentFrameIndex() {
   const part = book.format === "epub" ? "/epub/" : "/text/";
-  const prefix = new URL(bookPath() + part, location.href).pathname;
+  const prefix = endpoint(bookPath() + part).pathname;
   const pathname = frame.contentWindow.location.pathname;
   if (!pathname.startsWith(prefix)) return -1;
   const name = decodeURIComponent(pathname.slice(prefix.length));
@@ -388,7 +389,7 @@ frame.addEventListener("load", () => {
   clearInterval(frameObserver);
   if (!book || frame.hidden) return;
   const doc = frame.contentDocument;
-  if (!doc || !frame.contentWindow.location.pathname.startsWith(new URL(bookPath() + "/", location.href).pathname)) return;
+  if (!doc || !frame.contentWindow.location.pathname.startsWith(endpoint(bookPath() + "/").pathname)) return;
   themeFrame();
   const contentWindow = frame.contentWindow;
   const index = currentFrameIndex();
@@ -419,10 +420,10 @@ async function loadPdf(generation, position) {
   readerState(label("pdfLoading"));
   pdfEngine ??= await import("./pdfjs/legacy/build/pdf.min.mjs");
   if (generation !== bookGeneration) return;
-  pdfEngine.GlobalWorkerOptions.workerSrc = new URL("pdfjs/legacy/build/pdf.worker.min.mjs", location.href).href;
-  const asset = name => new URL("pdfjs/" + name + "/", location.href).href;
+  pdfEngine.GlobalWorkerOptions.workerSrc = endpoint("pdfjs/legacy/build/pdf.worker.min.mjs").href;
+  const asset = name => endpoint("pdfjs/" + name + "/").href;
   const task = pdfEngine.getDocument({
-    url: new URL(bookPath() + "/pdf", location.href).href,
+    url: endpoint(bookPath() + "/pdf").href,
     cMapUrl: asset("cmaps"), cMapPacked: true, standardFontDataUrl: asset("standard_fonts"),
     wasmUrl: asset("wasm"), iccUrl: asset("iccs"), enableXfa: false, isEvalSupported: false,
     maxImageSize: 20_000_000, canvasMaxAreaInBytes: 64_000_000,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 import argparse
+import errno
 import os
 from pathlib import Path
 import sys
@@ -34,11 +35,17 @@ def main():
     parser.add_argument("--shelf", action="store_true", help=tr("打开书架，不自动续读"))
     parser.add_argument("--web", action="store_true", help=tr("打开 Web 阅读视图，保留 EPUB 和 PDF 排版"))
     parser.add_argument("--browser", action="store_true", help=tr("在浏览器中打开 Web 阅读视图"))
+    parser.add_argument("--serve", action="store_true", help=tr("提供本机 Web 阅读地址，不打开窗口"))
+    parser.add_argument("--port", type=int, help=tr("本机阅读服务端口，默认 8765"))
     parser.add_argument("--import-only", action="store_true", help=tr("导入后退出，不打开界面"))
     parser.add_argument("--list", action="store_true", help=tr("列出书架并退出"))
     parser.add_argument("--version", action="version", version=f"MODU {__version__}")
     parser.add_argument("--lang", choices=("zh", "en"), help=tr("界面语言，选择后自动保存"))
     args = parser.parse_args()
+    if args.port is not None and (not args.serve or not 1 <= args.port <= 65535):
+        parser.error(tr("--port 需与 --serve 一起使用，取值为 1 至 65535。"))
+    if args.serve and (args.web or args.browser or args.list or args.import_only):
+        parser.error(tr("--serve 不能与 --web、--browser、--list 或 --import-only 同用。"))
     os.environ.setdefault("COLORTERM", "truecolor")
     os.environ.setdefault("TEXTUAL_COLOR_SYSTEM", "truecolor")
     os.environ.setdefault("TEXTUAL_SMOOTH_SCROLL", "0")
@@ -82,10 +89,18 @@ def main():
         if failures:
             raise SystemExit(1)
         return
-    if args.web or args.browser:
-        from .web_reader import run
+    if args.web or args.browser or args.serve:
+        from .web_reader import DEFAULT_PORT, run
 
-        run(library, target, shelf=args.shelf, browser=args.browser)
+        port = (args.port or DEFAULT_PORT) if args.serve else None
+        try:
+            run(library, target, shelf=args.shelf, browser=args.browser, port=port)
+        except OSError as error:
+            if not args.serve:
+                raise
+            if error.errno == errno.EADDRINUSE:
+                parser.exit(2, tr("端口已被占用，请用 --port 选择其他端口。") + "\n")
+            parser.exit(2, translate(language, "Web 阅读无法启动：{p0}", p0=clean(str(error))) + "\n")
         return
     if not sys.stdout.isatty():
         parser.exit(2, tr("请在交互式终端运行 modu；批量导入可使用 --import-only。\n"))

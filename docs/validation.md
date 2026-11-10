@@ -1,5 +1,11 @@
 # 实测记录 / Validation record
 
+## 1.3.0b2 — 侧边浏览器入口 / Side browser entry
+
+实际安装版 1.1.14 通过固定端口、自定义端口、端口冲突提示与本机监听检查。在 460 像素宽的 Chromium 中，从根地址打开 EPUB、跳转目录并渲染 PDF 原页和文字层。地址在翻页时保持不变。回归测试覆盖跨站请求、跨端口请求、外部嵌入、错误 Host 与无会话路径的 API 请求。
+
+Installed 1.1.14 passed default and custom port checks, conflict handling and loopback binding. The 460 px Chromium viewport opened an EPUB, navigated the contents and rendered the PDF page and text layer. The address stayed at the root. Regression covers cross-origin and cross-port requests, embedded navigation, wrong Host and requests to the API without a session path.
+
 ## 1.3.0b1 — Web 阅读与划词翻译 / Web reading and selection translation
 
 2026-11-10，macOS 本地验证。Python 3.11 和 3.14 各通过 154 项测试。

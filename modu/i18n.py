@@ -12,6 +12,12 @@ LANGUAGES = ("zh", "en")
 ENGLISH = {
     "打开 Web 阅读视图，保留 EPUB 和 PDF 排版": "Open the Web reader with EPUB and PDF layouts",
     "在浏览器中打开 Web 阅读视图": "Open the Web reader in a browser",
+    "提供本机 Web 阅读地址，不打开窗口": "Serve the Web reader at a local address without opening a window",
+    "本机阅读服务端口，默认 8765": "Local reader port (default: 8765)",
+    "--port 需与 --serve 一起使用，取值为 1 至 65535。": "--port requires --serve and a value from 1 to 65535.",
+    "--serve 不能与 --web、--browser、--list 或 --import-only 同用。": "--serve cannot be combined with --web, --browser, --list or --import-only.",
+    "端口已被占用，请用 --port 选择其他端口。": "Port in use. Choose another with --port.",
+    "Web 阅读无法启动：{p0}": "Could not start the Web reader: {p0}",
     "归档 a": "Archive a",
     "恢复 a": "Restore a",
     "删除 d": "Delete d",
