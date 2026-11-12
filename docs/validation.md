@@ -1,5 +1,11 @@
 # 实测记录 / Validation record
 
+## 1.3.0b7 — 收藏切换 / Vocabulary toggle
+
+460 像素 Chromium 在新译词浮层、重载后的已保存词浮层和手动翻译窗口中，分别验证同一按钮的加入、取消、再次加入，以及正文标注即时增减。继续通过跨书匹配、译文修改和删除验证。
+
+At 460 px, Chromium verified add, remove and re-add through the same button in a new translation card, a reloaded saved-word card and a manual translation dialog. Highlights updated immediately. Cross-book matching, meaning edits and deletion also passed.
+
 ## 1.3.0b6 — 词典卡片 / Dictionary cards
 
 Python 3.11 和 3.14 各通过 170 项测试。用自编示例在 460 像素深色、360 像素浅色 Chromium 中检查词典卡片、真实音标、英美喇叭、收藏和管理入口。两个口音的实际音频均完成解码与播放，界面显示对应播放状态。卡片无横向溢出，音标在重载后从本机缓存恢复。本地翻译模式的音标查询必须主动触发。

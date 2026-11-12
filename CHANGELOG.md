@@ -1,5 +1,11 @@
 # 更新记录 / Changelog
 
+## 1.3.0b7 — 收藏切换 / Vocabulary toggle
+
+词卡上的收藏按钮支持再次点击取消，正文标注同步更新。新译词、已保存词和手动翻译使用相同交互。
+
+Click the saved-word button again to remove the entry and its highlights. Newly translated words, cached words and manual translation use the same toggle.
+
 ## 1.3.0b6 — 词典卡片 / Dictionary cards
 
 翻译浮层使用单词、英美音标、喇叭图标和译文的层级排版。增加真实音标查询与本地缓存，英、美发音分别播放对应音频。折叠翻译选项，精简收藏与生词列表布局。

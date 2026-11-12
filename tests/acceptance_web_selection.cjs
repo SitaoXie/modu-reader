@@ -143,11 +143,19 @@ with serve(library, book, port=0) as url:
     await preview.getByRole('button', {name:'British pronunciation · Youdao', exact:true}).waitFor();
     await preview.getByRole('button', {name:'American pronunciation · Youdao', exact:true}).waitFor();
     await preview.getByRole('button', {name:'Save word', exact:true}).click();
-    await preview.getByRole('button', {name:'Word saved', exact:true}).waitFor();
+    await preview.getByRole('button', {name:'Remove word', exact:true}).waitFor();
     const highlighted = () => page.evaluate(() => {
       const win = document.querySelector('#book-frame').contentWindow;
       return [...win.CSS.highlights.get('modu-words')].map(range => range.toString());
     });
+    assert.deepEqual(await highlighted(), ['quiet','QUIET','quiet']);
+    const toggle = preview.locator('.save-word');
+    await toggle.click();
+    await page.waitForFunction(() => document.querySelector('#selection-actions .save-word')?.getAttribute('aria-pressed') === 'false');
+    assert.deepEqual(await highlighted(), []);
+    assert.equal(await preview.isVisible(), true);
+    await toggle.click();
+    await page.waitForFunction(() => document.querySelector('#selection-actions .save-word')?.getAttribute('aria-pressed') === 'true');
     assert.deepEqual(await highlighted(), ['quiet','QUIET','quiet']);
     const before = requests.length;
     await page.reload();
@@ -164,12 +172,33 @@ with serve(library, book, port=0) as url:
     await page.mouse.click(frameAfter.x + repeat.x, frameAfter.y + repeat.y);
     await preview.getByText('安静的', {exact:true}).waitFor();
     assert.equal(requests.length, before, 'Saved word made a new translation request');
+    await toggle.click();
+    await preview.getByRole('button', {name:'Save word', exact:true}).waitFor();
+    assert.deepEqual(await highlighted(), []);
+    await toggle.click();
+    await preview.getByRole('button', {name:'Remove word', exact:true}).waitFor();
+    assert.deepEqual(await highlighted(), ['quiet','QUIET','quiet']);
     await preview.getByRole('button', {name:'Close'}).click();
     await page.getByRole('button', {name:'Vocabulary', exact:true}).click();
     await page.getByRole('button', {name:'quiet · 安静的', exact:true}).click();
     await page.getByRole('textbox', {name:'Meaning', exact:true}).fill('宁静的');
     await page.getByRole('button', {name:'Save', exact:true}).click();
     await page.getByRole('button', {name:'quiet · 宁静的', exact:true}).waitFor();
+    await page.keyboard.press('Escape');
+    await settings.click();
+    await automatic.uncheck();
+    await page.waitForFunction(() => !document.querySelector('#dialog input[type=checkbox]').disabled);
+    await page.keyboard.press('Escape');
+    await page.mouse.dblclick(frameBox.x + quiet.x, frameBox.y + quiet.y);
+    await page.locator('#selection').click();
+    const manualToggle = page.locator('#dialog .save-word');
+    await page.getByRole('button', {name:'Remove word', exact:true}).waitFor();
+    await manualToggle.click();
+    await page.getByRole('button', {name:'Save word', exact:true}).waitFor();
+    assert.deepEqual(await highlighted(), []);
+    await manualToggle.click();
+    await page.getByRole('button', {name:'Remove word', exact:true}).waitFor();
+    assert.deepEqual(await highlighted(), ['quiet','QUIET','quiet']);
     await page.keyboard.press('Escape');
     for (const target of ['img', 'svg image']) {
       await chapter.locator(target).click();
@@ -198,7 +227,7 @@ with serve(library, book, port=0) as url:
     await page.getByRole('button', {name:'Delete', exact:true}).click();
     await page.getByText('No saved words yet.', {exact:false}).waitFor();
     assert.deepEqual(await highlighted(), []);
-    console.log(JSON.stringify({width:460, requests:requests.length, autoAfterRelease:true, zoomedImages:2, vocabularyPersistence:true, wholeWordMatches:3, inlineWordMatch:true, crossBook:true, removal:true}));
+    console.log(JSON.stringify({width:460, requests:requests.length, autoAfterRelease:true, zoomedImages:2, vocabularyPersistence:true, wholeWordMatches:3, inlineWordMatch:true, crossBook:true, removal:true, toggleInAllCards:true}));
   } finally {
     await browser?.close();
     server.kill();

@@ -222,7 +222,7 @@ const strings = {
   restartRequired: ["阅读服务需要重启。请在终端按 Ctrl+C，再运行 modu --serve 并刷新页面。", "Restart the reader service with Ctrl+C, run modu --serve, then reload this page."],
   vocabulary: ["生词本", "Vocabulary"], saveWord: ["加入生词本", "Save word"],
   save: ["保存", "Save"],
-  wordSaved: ["已加入生词本", "Word saved"], noWords: ["还没有生词。划选单词并翻译后可添加。", "No saved words yet. Select and translate a word to add it."],
+  noWords: ["还没有生词。划选单词并翻译后可添加。", "No saved words yet. Select and translate a word to add it."],
   filterWords: ["查找生词", "Find a word"], meaning: ["译文", "Meaning"],
   speak: ["原文发音", "Pronounce"], onlineSpeak: ["有道发音", "Youdao audio"],
   onlineSpeechNote: ["点击后将原文发送给有道获取发音。", "Sends the original text to Youdao when clicked."],
@@ -240,6 +240,7 @@ const strings = {
   phoneticsNote: ["音标与在线发音由有道提供", "IPA and online audio by Youdao"],
   phoneticsLookupNote: ["将此单词发送给有道查询音标", "Send this word to Youdao to look up IPA"],
   savedWord: ["已收藏", "Saved"],
+  unsaveWord: ["取消收藏", "Remove word"],
   manageWord: ["管理生词", "Edit saved word"],
   too_long: ["请选择不超过 600 个字符的文字。", "Select up to 600 characters."],
   unsupported_language: ["暂不支持这组语言。请在设置中选择其他目标语言。", "This language pair is unavailable. Choose another target in Settings."],
@@ -1017,6 +1018,7 @@ async function selectionDialog(start = true) {
       finally { go.disabled = false; }
     });
     const details = element("details", null, "lookup-options");
+    details.open = !start;
     details.append(element("summary", label("translationOptions")), source, description,
       element("p", translationNotice(provider), "muted"), localSpeech, go);
     const isWord = text.length <= 80 && !/\s/.test(text);
@@ -1028,7 +1030,7 @@ async function selectionDialog(start = true) {
       output.hidden = false;
       output.textContent = cached.translation;
       pronunciation.replaceChildren(...speechButtons(text, cached.source));
-      actions.replaceChildren(element("span", label("savedWord"), "saved-word-badge"));
+      actions.replaceChildren(...wordButtons(text, {text: cached.translation, source: cached.source, target: cached.target}));
     } else if (start) go.click();
   } catch (error) { report(error); }
 }
@@ -1206,18 +1208,34 @@ function savedWord(text) {
 
 function wordButtons(text, result) {
   if (Array.from(text).length > 80 || !/^\p{L}[\p{L}\p{M}]*(?:['’\-][\p{L}\p{M}]+)*$/u.test(text.trim())) return [];
+  const currentEntry = () => words.find(word => word.word_key === wordKey(text)
+    && word.source === result.source && word.target === result.target);
   const save = button(label("saveWord"), async () => {
     save.disabled = true;
     try {
-      words = await api("api/vocabulary", {word: text, source: result.source, target: result.target, translation: result.text});
+      words = await api("api/vocabulary", {
+        word: text, source: result.source, target: result.target,
+        translation: result.text, remove: Boolean(currentEntry()),
+      });
       highlightWords();
-      save.replaceChildren(icon("check"), element("span", label("savedWord")));
-      save.setAttribute("aria-label", label("wordSaved"));
-    } catch (error) { save.disabled = false; report(error); }
+      render();
+      if (save.parentElement === $("selection-actions")) {
+        const entry = currentEntry();
+        $("selection-source").textContent = label(entry ? "manageWord" : "translationOptions");
+        $("selection-source").onclick = entry ? () => editWord(entry) : () => selectionDialog(false);
+      }
+    } catch (error) { report(error); }
+    finally { save.disabled = false; }
   });
   save.className = "save-word";
-  save.replaceChildren(icon("bookmark"), element("span", label("saveWord")));
-  save.setAttribute("aria-label", label("saveWord"));
+  function render() {
+    const saved = Boolean(currentEntry());
+    save.replaceChildren(icon(saved ? "check" : "bookmark"), element("span", label(saved ? "savedWord" : "saveWord")));
+    save.setAttribute("aria-pressed", String(saved));
+    save.setAttribute("aria-label", label(saved ? "unsaveWord" : "saveWord"));
+    save.title = label(saved ? "unsaveWord" : "saveWord");
+  }
+  render();
   return [save];
 }
 
@@ -1286,9 +1304,9 @@ function showSavedWord(entry, range, doc, box) {
   $("selection-engine").classList.remove("is-passage");
   $("selection-result").textContent = entry.translation;
   $("selection-pronunciation").replaceChildren(...speechButtons(entry.word, entry.source));
-  const badge = element("span", null, "saved-word-badge");
-  badge.append(icon("check"), element("span", label("savedWord")));
-  $("selection-actions").replaceChildren(badge);
+  $("selection-actions").replaceChildren(...wordButtons(entry.word, {
+    text: entry.translation, source: entry.source, target: entry.target,
+  }));
   $("selection-source").textContent = label("manageWord");
   $("selection-source").onclick = () => editWord(entry);
   selectionPreview.hidden = false;

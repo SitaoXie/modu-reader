@@ -92,9 +92,9 @@ button.icon-button:focus-visible { outline: 2px solid var(--accent); outline-off
 button.text-button { background: transparent; color: var(--muted); padding: .2rem 0; border: 0; font-size: .78rem; }
 button.text-button:hover { color: var(--accent); }
 .phonetics-lookup { margin-inline-start: auto; }
-button.save-word, .saved-word-badge { display: inline-flex; align-items: center; gap: .35rem; font-size: .82rem; }
+button.save-word { display: inline-flex; align-items: center; gap: .35rem; font-size: .82rem; }
 button.save-word { background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--accent); border-radius: 7px; padding: .35rem .5rem; }
-.saved-word-badge { color: var(--accent); padding-block: .35rem; }
+button.save-word[aria-pressed="true"] { background: transparent; }
 #toast { bottom: 3.5rem; left: 50%; transform: translateX(-50%); max-width: 90vw; background: var(--panel); border: 1px solid var(--accent); border-radius: 4px; padding: .6rem 1rem; }
 dialog { width: min(520px, 94vw); max-height: 90dvh; overflow: auto; background: var(--bg); color: var(--fg); border: 1px solid var(--accent); border-radius: 7px; padding: 1.15rem; }
 dialog::backdrop { background: #0008; }
