@@ -1,5 +1,11 @@
 # 更新记录 / Changelog
 
+## 1.3.0b5 — 生词本与发音 / Vocabulary and pronunciation
+
+修复升级过程中界面与旧服务混用导致设置报错，服务启动时固定界面资源。增加本地生词本、原文发音和英文有道发音。保存过的单词跨书籍标注，可点击查看译文，支持修改与删除。
+
+Freeze reader assets at startup to keep the interface aligned with the running server after an upgrade. Add local vocabulary, browser pronunciation and explicit Youdao audio for English. Saved words are highlighted across books with quick lookup, editable meanings and deletion.
+
 ## 1.3.0b4 — 自动划词翻译和图片放大 / Selection translation and image zoom
 
 Web 设置增加松手后自动翻译，以及有道、Google 和本地 Argos 三种引擎。点击 EPUB 插图或封面可打开大图、缩放并恢复适应窗口。

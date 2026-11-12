@@ -1,5 +1,13 @@
 # 实测记录 / Validation record
 
+## 1.3.0b5 — 生词本与发音 / Vocabulary and pronunciation
+
+Python 3.11 和 3.14 各通过 167 项测试。旧运行服务实测缺少翻译设置接口并返回 404，新版固定服务启动时的界面资源，并验证无书状态下也可保存翻译设置。
+
+安装版 1.1.17 在 460 像素 Chromium 中验证生词添加、译文修改、删除、重载恢复和跨 EPUB/TXT 匹配，覆盖大小写、完整单词和跨斜体标签的单词。点击已保存单词直接显示本地译文，未新增翻译请求。有道单词音频实测完成解码与播放进度推进。macOS WebKit 验证了 3 处生词标注并发现 25 个本地英语声音。连续翻页回归仍通过 117 行、12 屏和 11 次回翻。
+
+Python 3.11 and 3.14 each passed 167 tests. The old running service reproduced a missing translation settings route. New servers freeze their interface assets at startup. Installed 1.1.17 passed 460 px Chromium checks for adding, editing, removing and reopening vocabulary, cross-book EPUB/TXT matching, case-insensitive whole words, and words split by inline emphasis. Cached lookup made no new translation request. A live Youdao word clip decoded and advanced playback. macOS WebKit verified three highlights and exposed 25 local English voices. The 117-line paging regression passed 12 screens and 11 reverse turns.
+
 ## 1.3.0b4 — 自动划词翻译和图片放大 / Selection translation and image zoom
 
 Python 3.11 和 3.14 各通过 158 项测试。460 像素宽的 Chromium 使用原创 EPUB 和真实鼠标拖选，验证手动模式、设置保存、拖动期间零请求、松手后一次请求，以及两种 EPUB 图片的放大和适应窗口。安装版 1.1.16 通过相同回归，并用实际 EPUB 封面验证缩放，用自制 PDF 验证文字层自动划词。macOS WebKit 另用派发的指针事件验证自动翻译和缩放。

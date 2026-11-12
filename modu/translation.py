@@ -234,6 +234,21 @@ def _web_response(request: Request) -> bytes:
     raise TranslationError("web_translation_failed") from None
 
 
+def pronunciation(text: str) -> bytes:
+    if not isinstance(text, str) or not 0 < len(text.strip()) <= 200:
+        raise TranslationError("speech_too_long")
+    request = Request(  # nosec B310
+        "https://dict.youdao.com/dictvoice?" + urlencode({"audio": text.strip(), "type": "2"})
+    )
+    try:
+        data = _web_response(request)
+        if data.startswith(b"ID3") or (len(data) > 2 and data[0] == 255 and data[1] & 224 == 224):
+            return data
+    except TranslationError:
+        pass
+    raise TranslationError("speech_failed")
+
+
 def _google(text: str, source: str, target: str) -> tuple[str, str]:
     params = urlencode({
         "client": "gtx", "dt": "t", "q": text,

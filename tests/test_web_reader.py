@@ -10,6 +10,7 @@ import pytest
 
 from modu.library import Library
 from modu.web_reader import serve
+from modu.web_reader import Reader
 
 
 def test_local_entry_keeps_root_url_and_blocks_cross_origin_bootstrap(tmp_path):
@@ -36,6 +37,37 @@ def test_local_entry_keeps_root_url_and_blocks_cross_origin_bootstrap(tmp_path):
         ):
             with pytest.raises(HTTPError, match="403"):
                 urlopen(Request(url, headers=headers), timeout=3)
+
+
+def test_running_server_keeps_matching_assets_during_update(tmp_path, monkeypatch):
+    library = Library(tmp_path)
+    reader = Reader(library)
+    original = reader.web_files["web.js"]
+    from pathlib import Path
+    monkeypatch.setattr(Path, "read_bytes", lambda _: b"new version")
+    assert reader.web_files["web.js"] == original
+    assert Reader(library).web_files["web.js"] == b"new version"
+
+
+def test_settings_and_vocabulary_routes_work_without_a_book(tmp_path):
+    library = Library(tmp_path)
+    with serve(library) as url:
+        parsed = urlsplit(url)
+        origin = f"{parsed.scheme}://{parsed.netloc}"
+        headers = {"Content-Type": "application/json", "Origin": origin}
+
+        def post(route, value):
+            with urlopen(Request(url + route, data=json.dumps(value).encode(), headers=headers), timeout=3) as response:
+                return json.load(response)
+
+        assert post("api/translation-options", {"provider": "youdao"})["provider"] == "youdao"
+        assert post("api/translation-options", {"automatic": True})["automatic"] is True
+        saved = post("api/vocabulary", {"word": "quiet", "source": "en", "target": "zh-Hans", "translation": "安静的"})
+        assert saved[0]["word_key"] == "quiet"
+        with urlopen(url + "api/vocabulary", timeout=3) as response:
+            assert json.load(response) == saved
+        with pytest.raises(HTTPError, match="403"):
+            urlopen(Request(url + "api/vocabulary", data=b"{}", headers={**headers, "Origin": "https://wrong.test"}), timeout=3)
 
 
 def test_web_reader_uses_private_capability_and_same_origin(tmp_path):

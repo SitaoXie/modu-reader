@@ -35,6 +35,7 @@ with ZipFile(source, "w") as archive:
     archive.writestr("chapter.xhtml", """<html xmlns="http://www.w3.org/1999/xhtml"><head>
     <style>body { margin: 1rem; font: 16px/1.6 sans-serif; } img { width: 160px; }</style></head>
     <body><p id="line">A quiet room is a good place to read.</p>
+    <p id="repeat">QUIET quietly qu<em>iet</em></p>
     <img src="plate.svg" alt="A blue illustration"/>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 50" width="80" height="50">
     <image href="plate.svg" width="80" height="50"/></svg></body></html>""")
@@ -44,8 +45,11 @@ library = Library(work / "library")
 library.set_setting("language", "en")
 library.set_setting("translation_target", "zh-Hans")
 book, _ = library.import_file(source)
+second = work / "Second Book.txt"
+second.write_text("A QUIET place. Quietly is a different word.", encoding="utf-8")
+library.import_file(second)
 translation._google = lambda text, source, target: ("安静的房间是读书的好地方。", "en")
-translation._youdao = lambda text, source, target: "适合读书的安静房间。"
+translation._youdao = lambda text, source, target: "安静的" if text.lower() == "quiet" else "适合读书的安静房间。"
 with serve(library, book, port=0) as url:
     print(url, flush=True)
     Event().wait()
@@ -122,6 +126,46 @@ with serve(library, book, port=0) as url:
     })));
     await preview.getByRole('button', {name:'Close'}).click();
     assert.equal(await preview.isVisible(), false);
+    // Double-click an individual word, save it, and inspect all later matches.
+    const quiet = await chapter.locator('#line').evaluate(node => {
+      const range = node.ownerDocument.createRange();
+      range.setStart(node.firstChild, 2);
+      range.setEnd(node.firstChild, 7);
+      const rect = range.getBoundingClientRect();
+      return {x:rect.x + rect.width / 2, y:rect.y + rect.height / 2};
+    });
+    const frameBox = await page.locator('#book-frame').boundingBox();
+    await page.mouse.dblclick(frameBox.x + quiet.x, frameBox.y + quiet.y);
+    await preview.getByText('安静的', {exact:true}).waitFor();
+    await preview.getByRole('button', {name:'Save word', exact:true}).click();
+    await preview.getByRole('button', {name:'Word saved', exact:true}).waitFor();
+    const highlighted = () => page.evaluate(() => {
+      const win = document.querySelector('#book-frame').contentWindow;
+      return [...win.CSS.highlights.get('modu-words')].map(range => range.toString());
+    });
+    assert.deepEqual(await highlighted(), ['quiet','QUIET','quiet']);
+    const before = requests.length;
+    await page.reload();
+    await chapter.locator('#line').waitFor();
+    await page.waitForFunction(() => document.querySelector('#book-frame').contentWindow.CSS.highlights.get('modu-words')?.size === 3);
+    const repeat = await chapter.locator('#repeat').evaluate(node => {
+      const range = node.ownerDocument.createRange();
+      range.setStart(node.firstChild, 0);
+      range.setEnd(node.firstChild, 5);
+      const rect = range.getBoundingClientRect();
+      return {x:rect.x + rect.width / 2, y:rect.y + rect.height / 2};
+    });
+    const frameAfter = await page.locator('#book-frame').boundingBox();
+    await page.mouse.click(frameAfter.x + repeat.x, frameAfter.y + repeat.y);
+    await preview.getByText('安静的', {exact:true}).waitFor();
+    assert.equal(requests.length, before, 'Saved word made a new translation request');
+    await preview.getByRole('button', {name:'Close'}).click();
+    await page.getByRole('button', {name:'Vocabulary', exact:true}).click();
+    await page.getByRole('button', {name:'quiet · 安静的', exact:true}).click();
+    await page.getByRole('textbox', {name:'Meaning', exact:true}).fill('宁静的');
+    await page.getByRole('button', {name:'Save', exact:true}).click();
+    await page.getByRole('button', {name:'quiet · 宁静的', exact:true}).waitFor();
+    await page.keyboard.press('Escape');
     for (const target of ['img', 'svg image']) {
       await chapter.locator(target).click();
       const enlarged = page.locator('.image-viewport img');
@@ -139,7 +183,17 @@ with serve(library, book, port=0) as url:
       await page.keyboard.press('Escape');
       assert.equal(await page.locator('#dialog').isVisible(), false);
     }
-    console.log(JSON.stringify({width:460, requests:requests.length, autoAfterRelease:true, zoomedImages:2}));
+    await page.locator('#back-button').click();
+    await page.getByRole('button', {name:/Second Book/}).click();
+    await page.waitForFunction(() => document.querySelector('#book-frame').contentWindow.CSS.highlights.get('modu-words')?.size === 1);
+    assert.deepEqual(await highlighted(), ['QUIET']);
+    await page.getByRole('button', {name:'Vocabulary', exact:true}).click();
+    await page.getByRole('button', {name:'quiet · 宁静的', exact:true}).click();
+    await page.getByRole('button', {name:'Delete', exact:true}).click();
+    await page.getByRole('button', {name:'Delete', exact:true}).click();
+    await page.getByText('No saved words yet.', {exact:false}).waitFor();
+    assert.deepEqual(await highlighted(), []);
+    console.log(JSON.stringify({width:460, requests:requests.length, autoAfterRelease:true, zoomedImages:2, vocabularyPersistence:true, wholeWordMatches:3, inlineWordMatch:true, crossBook:true, removal:true}));
   } finally {
     await browser?.close();
     server.kill();

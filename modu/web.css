@@ -33,6 +33,15 @@ h2 { font-size: 1.02rem; }
 .book-row small { display: block; color: var(--muted); }
 #reader { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .bookbar { border-bottom: 1px solid var(--panel); }
+.bookbar { flex-wrap: wrap; }
+.word-actions { display: flex; flex-wrap: wrap; gap: .4rem; margin-block: .5rem; }
+.word-list { max-height: 55dvh; overflow: auto; }
+.word-row { border-bottom: 1px solid var(--panel); padding-block: .35rem; }
+.word-row button { width: 100%; text-align: left; overflow-wrap: anywhere; }
+.selected-original { overflow-wrap: anywhere; }
+#dialog-body input[type="search"], #dialog-body textarea { width: 100%; font: inherit; background: var(--panel); color: var(--fg); padding: .6rem; border: 1px solid var(--muted); border-radius: 4px; }
+#dialog-body textarea { min-height: 6rem; resize: vertical; }
+::highlight(modu-words) { background-color: #d4b47740; text-decoration: underline; text-decoration-color: var(--accent); }
 .bookbar button, footer button { background: transparent; white-space: nowrap; }
 #book-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reading { position: relative; flex: 1; min-height: 0; display: flex; }

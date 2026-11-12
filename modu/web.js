@@ -219,6 +219,18 @@ const strings = {
   zoomIn: ["放大", "Zoom in"], zoomOut: ["缩小", "Zoom out"],
   imageError: ["无法加载此图片。", "This image could not be loaded."],
   close: ["关闭", "Close"],
+  restartRequired: ["阅读服务需要重启。请在终端按 Ctrl+C，再运行 modu --serve 并刷新页面。", "Restart the reader service with Ctrl+C, run modu --serve, then reload this page."],
+  vocabulary: ["生词本", "Vocabulary"], saveWord: ["加入生词本", "Save word"],
+  save: ["保存", "Save"],
+  wordSaved: ["已加入生词本", "Word saved"], noWords: ["还没有生词。划选单词并翻译后可添加。", "No saved words yet. Select and translate a word to add it."],
+  filterWords: ["查找生词", "Find a word"], meaning: ["译文", "Meaning"],
+  speak: ["原文发音", "Pronounce"], onlineSpeak: ["有道发音", "Youdao audio"],
+  onlineSpeechNote: ["点击后将原文发送给有道获取发音。", "Sends the original text to Youdao when clicked."],
+  speech_failed: ["发音不可用，请重试。", "Audio is unavailable. Please try again."],
+  speechUnavailable: ["浏览器没有此语言的本地语音。英文可尝试有道发音。", "No local voice for this language. For English, try Youdao audio."],
+  speech_too_long: ["发音最多支持 200 个字符。", "Pronunciation supports up to 200 characters."],
+  removeWord: ["从生词本移除此词？", "Remove this word from Vocabulary?"],
+  highlightUnavailable: ["此浏览器不支持正文生词标注，可从生词本查看。", "This browser cannot highlight vocabulary. Open Vocabulary to review saved words."],
   too_long: ["请选择不超过 600 个字符的文字。", "Select up to 600 characters."],
   unsupported_language: ["暂不支持这组语言。请在设置中选择其他目标语言。", "This language pair is unavailable. Choose another target in Settings."],
   dependencies: ["请安装 MODU 的 translation 扩展。", "Install MODU with its translation extra."],
@@ -237,6 +249,12 @@ let frameObserver;
 let selection = "";
 let selectionTimer;
 let translationRequest;
+let words = [];
+let wordRanges = [];
+let wordDocument;
+let audioPlayer;
+let audioUrl;
+let speechRequest;
 let toastTimer;
 let saveTimer;
 let bookGeneration = 0;
@@ -314,6 +332,7 @@ function themeFrame() {
   body.style.setProperty("--modu-bg", palette.colors[0]);
   body.style.setProperty("--modu-fg", palette.colors[1]);
   body.style.setProperty("--modu-scheme", palette.light ? "light" : "dark");
+  body.style.setProperty("--modu-accent", palette.colors[2]);
 }
 
 function syncSidebar() {
@@ -369,6 +388,8 @@ async function loadShelf() {
   setLabels();
   setTheme(shelfData.theme, false);
   renderShelf();
+  if (shelfData.serverVersion) words = await api("api/vocabulary");
+  else toast(label("restartRequired"));
 }
 
 function savePosition() {
@@ -399,6 +420,8 @@ function resetReader() {
   book = undefined;
   pendingFrame = undefined;
   clearSelection();
+  wordRanges = [];
+  wordDocument = undefined;
   frame.hidden = true;
   frame.removeAttribute("src");
   pdfView.hidden = true;
@@ -616,6 +639,8 @@ frame.addEventListener("load", () => {
   doc.addEventListener("scroll", onFrameScroll, {passive: true});
   doc.addEventListener("keydown", keyboard);
   bindSelection(doc, doc, () => frame.getBoundingClientRect());
+  bindVocabulary(doc);
+  highlightWords();
   if (book.format === "epub") bindImages(doc);
   onFrameScroll();
   // WebKit can suppress events from the scriptless frame. Observe its DOM
@@ -687,6 +712,7 @@ async function renderPdf(endRatio) {
   $("reader-state").hidden = true;
   pager = new ScreenPages(pdfView, pdfView, pdfView);
   pager.restore(current, endRatio);
+  highlightWords();
   updatePosition();
 }
 
@@ -739,6 +765,7 @@ function selectField(title, choices, value, onChange) {
 
 async function settings() {
   try {
+    if (!shelfData.serverVersion) return toast(label("restartRequired"));
     const item = book;
     const latest = await api("api/shelf");
     shelfData.translationOptions = latest.translationOptions;
@@ -749,7 +776,7 @@ async function settings() {
     const engine = selectField(label("translationEngine"),
       ["local", "youdao", "google"].map(key => [key, label(key)]), preferences.provider,
       async select => {
-        await saveTranslationOption(select, {provider: select.value}, "provider");
+        await saveTranslationOption(select, {provider: select.value}, "value");
         notice.textContent = translationNotice(translationOptions().provider);
       });
     const automatic = element("input");
@@ -763,12 +790,14 @@ async function settings() {
     const global = selectField(label("globalTarget"), [["", label("system") + " · " + (shelfData.languages[value.system_target] || value.system_target)], ...choices], value.global_target, async select => {
       const updated = await api("api/translation", {target: select.value});
       if (item && book === item) item.translation = (await api(bookPath(item))).translation;
+      highlightWords();
       select.value = updated.global_target;
       toast(label("saved"));
     });
     const nodes = [engine, notice, automaticField, global];
     if (item) nodes.push(selectField(label("bookTarget"), [["", label("inherit")], ...choices], value.book_target, async select => {
       item.translation = await api(bookPath(item) + "/translation", {target: select.value});
+      highlightWords();
       toast(label("saved"));
     }));
     showDialog(label("settings"), nodes);
@@ -813,6 +842,7 @@ function clearSelection() {
   translationRequest = undefined;
   selection = "";
   selectionPreview.hidden = $("selection").hidden = true;
+  stopSpeech();
 }
 
 function readingSelection(doc) {
@@ -871,17 +901,23 @@ async function previewTranslation(doc, getBox) {
   if (!text || !translationOptions().automatic) return;
   if (Array.from(text).length > 600) return toast(label("too_long"));
   selection = text;
+  const cached = savedWord(text);
+  if (cached) return showSavedWord(cached, range.getRangeAt(0), doc, getBox());
   const {provider} = translationOptions();
   const request = new AbortController();
   translationRequest = request;
   $("selection-engine").textContent = label(provider);
   const output = $("selection-result");
   output.textContent = translating(provider);
+  $("selection-actions").replaceChildren(...speechButtons(text, initialSource(item)));
   selectionPreview.hidden = false;
   placeSelection(selectionPreview, range, getBox());
   try {
     const result = await api(bookPath(item) + "/translate", {text, source: initialSource(item), provider}, {signal: request.signal});
-    if (!request.signal.aborted) output.textContent = result.text;
+    if (!request.signal.aborted) {
+      output.textContent = result.text;
+      $("selection-actions").replaceChildren(...speechButtons(text, result.source), ...wordButtons(text, result));
+    }
   } catch (error) {
     if (!request.signal.aborted) output.textContent = label(error.message);
   } finally {
@@ -900,6 +936,7 @@ async function selectionDialog(start = true) {
   $("selection").hidden = true;
   if (!item || !text) return;
   if (Array.from(text).length > 600) return toast(label("too_long"));
+  if (!shelfData.serverVersion) return toast(label("restartRequired"));
   try {
     const pref = (await api(bookPath(item))).translation;
     if (book !== item) return;
@@ -910,6 +947,8 @@ async function selectionDialog(start = true) {
     const output = element("div", "", "translation-result");
     output.hidden = true;
     output.setAttribute("aria-live", "polite");
+    const actions = element("div", null, "word-actions");
+    actions.append(...speechButtons(text, initialSource(item)));
     const go = button(label("translate"), async () => {
       go.disabled = true;
       output.hidden = false;
@@ -917,12 +956,18 @@ async function selectionDialog(start = true) {
       try {
         const result = await api(bookPath(item) + "/translate", {text, source: source.querySelector("select").value, provider});
         output.textContent = result.text;
+        actions.replaceChildren(...speechButtons(text, result.source), ...wordButtons(text, result));
       } catch (error) { output.textContent = label(error.message); }
       finally { go.disabled = false; }
     });
     showDialog(label("translate") + " · " + label(provider),
-      [source, description, element("p", translationNotice(provider), "muted"), go, output]);
-    if (start) go.click();
+      [element("p", text, "selected-original"), source, description, element("p", translationNotice(provider), "muted"), go, output, actions]);
+    const cached = savedWord(text);
+    if (cached) {
+      output.hidden = false;
+      output.textContent = cached.translation;
+      actions.replaceChildren(...speechButtons(text, cached.source));
+    } else if (start) go.click();
   } catch (error) { report(error); }
 }
 
@@ -956,6 +1001,203 @@ function bindImages(doc) {
       if (event.key === "Enter") open(event);
     });
   }
+}
+
+function stopSpeech() {
+  speechRequest?.abort();
+  speechRequest = undefined;
+  window.speechSynthesis?.cancel();
+  audioPlayer?.pause();
+  audioPlayer = undefined;
+  if (audioUrl) URL.revokeObjectURL(audioUrl);
+  audioUrl = undefined;
+}
+
+function speechButtons(text, source) {
+  const local = button(label("speak"), () => {
+    stopSpeech();
+    if (Array.from(text).length > 200) return toast(label("speech_too_long"));
+    const primary = (source || "en").split("-")[0];
+    const voice = window.speechSynthesis?.getVoices().find(voice =>
+      voice.localService && voice.lang.toLowerCase().split(/[-_]/)[0] === primary);
+    if (!voice) return toast(label("speechUnavailable"));
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.voice = voice;
+    utterance.lang = voice.lang;
+    utterance.rate = 0.85;
+    utterance.onerror = event => {
+      if (!["interrupted", "canceled"].includes(event.error)) toast(label("speech_failed"));
+    };
+    window.speechSynthesis.speak(utterance);
+  });
+  // Prime the voice list while the reader is idle, before the user's click.
+  window.speechSynthesis?.getVoices();
+  if (source && source !== "en") return [local];
+  const online = button(label("onlineSpeak"), async () => {
+    stopSpeech();
+    const request = new AbortController();
+    speechRequest = request;
+    online.disabled = true;
+    try {
+      const response = await fetch(endpoint("api/pronounce"), {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({text}), signal: request.signal,
+      });
+      if (!response.ok) throw new Error((await response.json()).error);
+      const blob = await response.blob();
+      if (request.signal.aborted) return;
+      audioUrl = URL.createObjectURL(blob);
+      audioPlayer = new Audio(audioUrl);
+      await audioPlayer.play();
+    } catch (error) {
+      if (!request.signal.aborted) toast(label(error.message === "speech_too_long" ? error.message : "speech_failed"));
+    } finally { online.disabled = false; }
+  });
+  online.title = label("onlineSpeechNote");
+  return [local, online];
+}
+
+function wordKey(text) {
+  return text.trim().normalize("NFC").replaceAll("’", "'").toLowerCase();
+}
+
+function activeWords() {
+  const source = book && initialSource(book);
+  return words.filter(word => (!source || word.source === source) && word.target === book?.translation.target);
+}
+
+function savedWord(text) {
+  const key = wordKey(text);
+  return activeWords().find(word => word.word_key === key);
+}
+
+function wordButtons(text, result) {
+  if (Array.from(text).length > 80 || !/^\p{L}[\p{L}\p{M}]*(?:['’\-][\p{L}\p{M}]+)*$/u.test(text.trim())) return [];
+  const save = button(label("saveWord"), async () => {
+    save.disabled = true;
+    try {
+      words = await api("api/vocabulary", {word: text, source: result.source, target: result.target, translation: result.text});
+      highlightWords();
+      save.textContent = label("wordSaved");
+    } catch (error) { save.disabled = false; report(error); }
+  });
+  return [save];
+}
+
+function highlightWords() {
+  const doc = book?.format === "pdf" ? document : frame.contentDocument;
+  const surface = doc === document ? pdfView.querySelector(".textLayer") : doc?.body;
+  const view = doc?.defaultView;
+  wordRanges = [];
+  wordDocument = doc;
+  if (!surface || !view?.CSS?.highlights || !view.Highlight) return;
+  const dictionary = new Map(activeWords().map(word => [word.word_key, word]));
+  const highlights = new view.Highlight();
+  view.CSS.highlights.set("modu-words", highlights);
+  if (!dictionary.size) return;
+  const walker = doc.createTreeWalker(surface, NodeFilter.SHOW_TEXT);
+  const groups = [];
+  let node;
+  let block;
+  while ((node = walker.nextNode())) {
+    if (node.parentElement.closest("script, style, noscript, button, textarea, svg")) continue;
+    const parent = node.parentElement.closest("p, li, div, h1, h2, h3, h4, h5, h6, td, th, pre") || surface;
+    if (parent !== block) { groups.push([]); block = parent; }
+    groups.at(-1).push(node);
+  }
+  for (const nodes of groups) {
+    const text = nodes.map(node => node.textContent).join("");
+    const offsets = [];
+    let offset = 0;
+    for (const node of nodes) { offsets.push(offset); offset += node.length; }
+    for (const match of text.matchAll(/\p{L}[\p{L}\p{M}]*(?:['’\-][\p{L}\p{M}]+)*/gu)) {
+      const entry = dictionary.get(wordKey(match[0]));
+      if (!entry) continue;
+      const start = match.index;
+      const end = start + match[0].length;
+      const first = nodes.findIndex((node, i) => offsets[i] + node.length > start);
+      const last = nodes.findIndex((node, i) => offsets[i] + node.length >= end);
+      const range = doc.createRange();
+      range.setStart(nodes[first], start - offsets[first]);
+      range.setEnd(nodes[last], end - offsets[last]);
+      highlights.add(range);
+      wordRanges.push({range, entry});
+    }
+  }
+}
+
+function bindVocabulary(doc) {
+  doc.addEventListener("click", event => {
+    if (dialog.open || doc !== wordDocument || !doc.getSelection()?.isCollapsed) return;
+    if (event.target.closest("a, button, input, select, textarea")) return;
+    const hit = wordRanges.find(({range}) => [...range.getClientRects()].some(rect =>
+      event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom));
+    if (hit) {
+      const box = doc === document ? {left: 0, top: 0} : frame.getBoundingClientRect();
+      showSavedWord(hit.entry, hit.range, doc, box);
+    }
+  });
+}
+
+function showSavedWord(entry, range, doc, box) {
+  clearSelection();
+  const selected = doc.getSelection();
+  selected.removeAllRanges();
+  selected.addRange(range.cloneRange());
+  selection = selected.toString().trim();
+  $("selection-engine").textContent = entry.word + " · " + label("vocabulary");
+  $("selection-result").textContent = entry.translation;
+  $("selection-actions").replaceChildren(...speechButtons(entry.word, entry.source));
+  selectionPreview.hidden = false;
+  placeSelection(selectionPreview, selected, box);
+}
+
+async function vocabulary() {
+  if (!shelfData.serverVersion) return toast(label("restartRequired"));
+  try {
+    words = await api("api/vocabulary");
+    highlightWords();
+    const search = element("input");
+    search.type = "search";
+    search.placeholder = label("filterWords");
+    search.setAttribute("aria-label", label("filterWords"));
+    const list = element("div", null, "word-list");
+    function render() {
+      const query = wordKey(search.value);
+      const entries = words.filter(word => wordKey(word.word).includes(query) || word.translation.toLowerCase().includes(query));
+      list.replaceChildren(...entries.map(entry => {
+        const row = element("div", null, "word-row");
+        row.append(button(entry.word + " · " + entry.translation, () => editWord(entry)));
+        return row;
+      }));
+      if (!entries.length) list.append(element("p", label("noWords"), "muted"));
+    }
+    search.oninput = render;
+    render();
+    const nodes = [search, list];
+    if (!window.CSS?.highlights) nodes.push(element("p", label("highlightUnavailable"), "muted"));
+    showDialog(label("vocabulary"), nodes);
+  } catch (error) { report(error); }
+}
+
+function editWord(entry) {
+  const field = element("label", label("meaning"));
+  const meaning = element("textarea");
+  meaning.value = entry.translation;
+  meaning.maxLength = 4000;
+  field.append(meaning);
+  const actions = element("div", null, "word-actions");
+  actions.append(...speechButtons(entry.word, entry.source),
+    button(label("save"), async () => {
+      try {
+        words = await api("api/vocabulary", {...entry, translation: meaning.value});
+        await vocabulary();
+      } catch (error) { report(error); }
+    }), button(label("delete"), () => confirmAction(label("delete"), label("removeWord"), async () => {
+      words = await api("api/vocabulary", {...entry, remove: true});
+      await vocabulary();
+    })));
+  showDialog(entry.word + " · " + entry.source + " → " + entry.target, [field, actions]);
 }
 
 function showImage(url, alt) {
@@ -1054,6 +1296,9 @@ function keyboard(event) {
 }
 
 $("settings-button").onclick = settings;
+$("vocabulary-button").onclick = vocabulary;
+dialog.addEventListener("close", stopSpeech);
+bindVocabulary(document);
 $("shelf-button").onclick = $("back-button").onclick = backToShelf;
 $("archive-toggle").onclick = () => { archived = !archived; renderShelf(); };
 $("theme-button").onclick = () => {

@@ -16,11 +16,13 @@ from threading import Event, Thread
 from urllib.parse import unquote, urlsplit
 
 from .i18n import normalize_language, translate
+from . import __version__
+from .vocabulary import Vocabulary
 from .parsers import SUPPORTED
 from .safety import MAX_SOURCE_BYTES, read_bounded, validate_book_id
 from .themes import LIGHT_PALETTES, PALETTES
 from .translation import (
-    LANGUAGES, TranslationError, options_for, set_option, set_target, settings_for, translate_selection,
+    LANGUAGES, TranslationError, options_for, pronunciation, set_option, set_target, settings_for, translate_selection,
 )
 from .web_epub import EpubBook
 from .web_pdf import PdfAssets
@@ -42,6 +44,7 @@ EPUB_BRIDGE = """
 body { background: transparent; color: var(--modu-fg, #ddd6c8); overflow-wrap: break-word; }
 img, svg { max-width: 100%; }
 ::selection { background: #d4b477; color: #171717; }
+::highlight(modu-words) { background-color: #d4b47740; text-decoration: underline; text-decoration-color: var(--modu-accent, #d4b477); }
 """
 
 
@@ -69,6 +72,8 @@ def chapter_json(chapter):
 class Reader:
     def __init__(self, library, book_id=None, shelf=False):
         self.library = library
+        self.vocabulary = Vocabulary(library)
+        self.web_files = {name: Path(__file__).with_name(name).read_bytes() for name in WEB_FILES}
         self.explicit_book = book_id is not None
         self.start_book = book_id or (
             None if shelf else library.setting("web:last_book") or library.setting("last_book")
@@ -83,6 +88,7 @@ class Reader:
         theme = self.library.setting("theme")
         language = normalize_language(self.library.setting("language"))
         return {
+            "serverVersion": __version__,
             "books": [{key: book[key] for key in fields} for book in books],
             "start": self.start_book,
             "explicitBook": self.explicit_book,
@@ -297,11 +303,11 @@ class Handler(BaseHTTPRequestHandler):
             csp = (
                 "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; "
                 "style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; "
-                "font-src 'self' blob: data:; connect-src 'self'; worker-src 'self'; "
+                "font-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; worker-src 'self'; "
                 "frame-src 'self'; object-src 'none'; base-uri 'none'; "
                 "form-action 'none'; frame-ancestors 'none'"
             )
-            data = Path(__file__).with_name(name).read_bytes()
+            data = reader.web_files[name]
             if route is None:
                 # Keep the visible address at /. Assets and APIs still use the
                 # per-launch session path.
@@ -310,6 +316,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_data(data, WEB_FILES[name], csp=csp)
         if route == "api/shelf":
             return self.json(reader.shelf())
+        if route == "api/vocabulary":
+            return self.json(reader.vocabulary.entries())
         if route.startswith("pdfjs/"):
             mime, data = reader.pdf.resource(route.removeprefix("pdfjs/"))
             # Workers must be able to load the PDF and their packaged assets.
@@ -374,6 +382,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.json(settings_for(reader.library, None))
         if route == "api/translation-options":
             return self.json(set_option(reader.library, data))
+        if route == "api/vocabulary":
+            return self.json(reader.vocabulary.update(data))
+        if route == "api/pronounce":
+            return self.send_data(pronunciation(data.get("text")), "audio/mpeg")
         match = re.fullmatch(r"book/([a-f0-9]{64})/(\w+)", route)
         if match:
             identifier, action = match.groups()
