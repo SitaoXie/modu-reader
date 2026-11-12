@@ -174,6 +174,14 @@ const dialog = $("dialog");
 const selectionPreview = $("selection-preview");
 const root = document.documentElement;
 const strings = {
+  search: ["搜索", "Search"], searchBook: ["搜索整本书", "Search the whole book"],
+  searchHint: ["输入关键词，Enter 搜索", "Type a phrase, then press Enter"],
+  searching: ["正在搜索全书…", "Searching the book…"], noResults: ["未找到匹配文字。", "No matching text."],
+  searchResults: ["个结果", "results"], searchMore: ["显示前 200 个，请细化关键词。", "First 200 shown. Refine your search."],
+  readingSettings: ["阅读排版", "Reading layout"], readWidth: ["正文宽度", "Reading width"],
+  spacing: ["段间距", "Paragraph spacing"], compact: ["紧凑", "Compact"], relaxed: ["舒展", "Relaxed"], airy: ["宽松", "Airy"],
+  chapterBreaks: ["章节另起一页", "Start chapters on a new page"],
+  fixedLayout: ["PDF 保留原始页面，正文宽度、段间距和章节分页仅用于 EPUB、TXT 与 Markdown。", "PDF keeps its original pages. Width, spacing and chapter breaks apply to EPUB, TXT and Markdown."],
   import: ["导入", "Import"], theme: ["主题", "Theme"], settings: ["设置", "Settings"],
   shelf: ["我的书架", "My bookshelf"], archived: ["已归档", "Archived"],
   back: ["‹ 书架", "‹ Shelf"], contents: ["目录", "Contents"], marks: ["书签", "Marks"],
@@ -269,6 +277,7 @@ let speechRequest;
 let speechControl;
 let previewDocument;
 const phoneticCache = new Map();
+const boundImages = new WeakSet();
 let toastTimer;
 let saveTimer;
 let bookGeneration = 0;
@@ -277,6 +286,10 @@ let pdfDocument;
 let pdfEngine;
 let pdfTask;
 let pager;
+let flowRequest;
+let pendingSearch;
+let layoutAnchor;
+let searchGeneration = 0;
 const pageHistory = [];
 let sidebarOpen = innerWidth > 720;
 
@@ -463,6 +476,10 @@ function resetReader() {
   pdfGeneration++;
   book = undefined;
   pendingFrame = undefined;
+  pendingSearch = undefined;
+  layoutAnchor = undefined;
+  flowRequest = undefined;
+  searchGeneration++;
   clearSelection();
   wordRanges = [];
   wordDocument = undefined;
@@ -569,7 +586,8 @@ function updateProgress() {
   $("progress").textContent = (locale ? unit + " " : "") + (spot.index + 1) + " / " + count
     + (locale ? "" : " " + unit) + " · " + Math.round(percent * 100) + "%";
   $("previous").disabled = !pager || (spot.index === 0 && pager.top <= 1);
-  $("next").disabled = !pager || (spot.index === count - 1 && pager.end >= pager.extent - 1);
+  const finalSection = flowMode() ? Number(sections().at(-1)?.dataset.moduSection) === count - 1 : spot.index === count - 1;
+  $("next").disabled = !pager || (finalSection && pager.end >= pager.extent - 1);
   let current;
   const view = frame.contentDocument?.scrollingElement;
   for (const entry of $("toc").children) {
@@ -589,13 +607,14 @@ function clearPager() {
 function updatePosition() {
   if (!pager || pager.layout !== pager.geometry) return;
   if (pager.releaseOnScroll()) pageHistory.length = 0;
-  Object.assign(spot, pager.position);
+  Object.assign(spot, flowMode() ? flowLocation(pager.top) : pager.position);
   updateProgress();
   rememberPosition();
 }
 
 function jump(value, fragment = "", turning = false) {
   if (!book || !total()) return;
+  if (flowMode()) return jumpFlow(value, fragment, turning);
   const sameSection = spot.index === value.index;
   if (!turning) pageHistory.length = 0;
   spot = boundedSpot(value);
@@ -650,6 +669,8 @@ function frameAnchor(doc, fragment) {
 }
 
 function currentFrameIndex() {
+  const flowPrefix = endpoint(bookPath() + "/flow/").pathname;
+  if (frame.contentWindow.location.pathname.startsWith(flowPrefix)) return Number(frame.contentWindow.location.pathname.slice(flowPrefix.length));
   const part = book.format === "epub" ? "/epub/" : "/text/";
   const prefix = endpoint(bookPath() + part).pathname;
   const pathname = frame.contentWindow.location.pathname;
@@ -664,6 +685,7 @@ frame.addEventListener("load", () => {
   const doc = frame.contentDocument;
   if (!doc || !frame.contentWindow.location.pathname.startsWith(endpoint(bookPath() + "/").pathname)) return;
   themeFrame();
+  applyReadingStyle();
   const contentWindow = frame.contentWindow;
   const index = currentFrameIndex();
   if (index >= 0) spot.index = index;
@@ -673,20 +695,35 @@ frame.addEventListener("load", () => {
   if (doc.scrollingElement) {
     pager = new ScreenPages(doc.scrollingElement, frame, doc.body);
     if (previous?.url === contentWindow.location.pathname && !previous.fragment) {
-      pager.restore(previous.position, previous.endRatio);
+      if (flowMode()) pager.show(flowTop(previous.position));
+      else pager.restore(previous.position, previous.endRatio);
     } else {
       if (previous?.fragment) frameAnchor(doc, previous.fragment)?.scrollIntoView();
       else if (!previous) pageHistory.length = 0;
       pager.prepare();
     }
   }
+  restoreLayoutAnchor();
   doc.addEventListener("scroll", onFrameScroll, {passive: true});
   doc.addEventListener("keydown", keyboard);
   bindSelection(doc, doc, () => frame.getBoundingClientRect());
   bindVocabulary(doc);
   highlightWords();
   if (book.format === "epub") bindImages(doc);
+  doc.addEventListener("click", event => {
+    if (!flowMode()) return;
+    const link = event.target.closest("a[href]");
+    if (!link) return;
+    const url = new URL(link.href);
+    const prefix = endpoint(bookPath() + "/epub/").pathname;
+    const index = url.pathname.startsWith(prefix) ? book.chapters.findIndex(chapter => chapter.name === decodeURIComponent(url.pathname.slice(prefix.length))) : spot.index;
+    if (index < 0) return;
+    event.preventDefault();
+    jump({index, scroll: 0}, decodeURIComponent(url.hash.slice(1)));
+  });
   onFrameScroll();
+  if (flowMode()) ensureFlow().catch(report);
+  applySearchHit();
   // WebKit can suppress events from the scriptless frame. Observe its DOM
   // from the reader window without granting the publication script access.
   frameObserver = setInterval(() => {
@@ -758,6 +795,7 @@ async function renderPdf(endRatio) {
   pager.restore(current, endRatio);
   highlightWords();
   updatePosition();
+  applySearchHit();
 }
 
 pdfView.addEventListener("scroll", () => {
@@ -765,8 +803,12 @@ pdfView.addEventListener("scroll", () => {
   if (book?.format === "pdf" && !pdfView.hidden) updatePosition();
 }, {passive: true});
 
-function navigate(delta) {
+async function navigate(delta) {
   if (!isReady()) return;
+  if (flowMode() && delta > 0) {
+    try { await ensureFlow(); } catch (error) { report(error); return; }
+    if (!isReady()) return;
+  }
   if (pager.resize(spot) || pager.releaseOnScroll()) pageHistory.length = 0;
   clearSelection();
   if (delta < 0) {
@@ -781,8 +823,8 @@ function navigate(delta) {
   if (pager.cut === undefined) pager.prepare();
   const next = pager.end;
   const moreHere = next < pager.extent - 1 && next > pager.top + 1;
-  if (!moreHere && spot.index >= total() - 1) return;
-  pageHistory.push({index: spot.index, ...pager.position, endRatio: next / pager.extent});
+  if (!moreHere && (flowMode() ? Number(sections().at(-1)?.dataset.moduSection) >= total() - 1 : spot.index >= total() - 1)) return;
+  pageHistory.push(flowMode() ? {...spot, endLocation: flowLocation(next)} : {index: spot.index, ...pager.position, endRatio: next / pager.extent});
   if (pageHistory.length > 512) pageHistory.shift();
   if (moreHere) {
     pager.show(next);
@@ -838,7 +880,23 @@ async function settings() {
       select.value = updated.global_target;
       toast(label("saved"));
     });
-    const nodes = [engine, notice, automaticField, global];
+    shelfData.readingOptions = latest.readingOptions;
+    const layoutTitle = element("h3", label("readingSettings"));
+    const width = selectField(label("readWidth"), [64, 80, 96].map(value => [String(value), String(value) + " ch"]), String(readingOptions().read_width), async control => saveReadingOption(control, {read_width: Number(control.value)}));
+    const spacing = selectField(label("spacing"), [["0", label("compact")], ["1", label("relaxed")], ["2", label("airy")]], String(readingOptions().spacing), async control => saveReadingOption(control, {spacing: Number(control.value)}));
+    const chapterInput = element("input");
+    chapterInput.type = "checkbox";
+    chapterInput.checked = readingOptions().chapter_breaks;
+    chapterInput.addEventListener("change", () => saveReadingOption(chapterInput, {chapter_breaks: chapterInput.checked}).catch(report));
+    const chapterField = element("label", null, "checkbox-field");
+    chapterField.append(chapterInput, element("span", label("chapterBreaks")));
+    const nodes = [layoutTitle, width, spacing, chapterField];
+    if (item?.format === "pdf") {
+      for (const field of [width, spacing]) field.querySelector("select").disabled = true;
+      chapterInput.disabled = true;
+      nodes.push(element("p", label("fixedLayout"), "muted"));
+    }
+    nodes.push(element("h3", label("translationOptions")), engine, notice, automaticField, global);
     if (item) nodes.push(selectField(label("bookTarget"), [["", label("inherit")], ...choices], value.book_target, async select => {
       item.translation = await api(bookPath(item) + "/translation", {target: select.value});
       highlightWords();
@@ -846,6 +904,286 @@ async function settings() {
     }));
     showDialog(label("settings"), nodes);
   } catch (error) { report(error); }
+}
+
+
+function textNodes(surface) {
+  const walker = surface.ownerDocument.createTreeWalker(surface, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  let node;
+  while ((node = walker.nextNode())) if (!node.parentElement.closest("style,script,head,[hidden]")) nodes.push(node);
+  return nodes;
+}
+
+function captureLayoutAnchor() {
+  if (!book || book.format === "pdf" || !pager?.anchor) return;
+  const {range, inset} = pager.anchor;
+  const surface = range.startContainer.parentElement.closest("[data-modu-section]") || frame.contentDocument.body;
+  let offset = 0;
+  for (const node of textNodes(surface)) {
+    if (node === range.startContainer) return {book: book.id, index: spot.index, offset: offset + range.startOffset, inset};
+    offset += node.length;
+  }
+}
+
+function restoreLayoutAnchor() {
+  const saved = layoutAnchor;
+  layoutAnchor = undefined;
+  if (!saved || !pager || saved.book !== book?.id || saved.index !== spot.index) return;
+  const surface = flowMode() ? sections().find(node => Number(node.dataset.moduSection) === spot.index) : frame.contentDocument.body;
+  let offset = saved.offset;
+  for (const node of textNodes(surface)) {
+    if (offset <= node.length) {
+      const range = node.ownerDocument.createRange();
+      range.setStart(node, offset); range.collapse(true);
+      const rect = range.getBoundingClientRect();
+      pager.show(pager.top + rect.top - pager.viewport.top - saved.inset);
+      return;
+    }
+    offset -= node.length;
+  }
+}
+
+function readingOptions() {
+  return shelfData?.readingOptions || {read_width: 80, spacing: 1, chapter_breaks: true};
+}
+
+function flowMode() {
+  return book && book.format !== "pdf" && !readingOptions().chapter_breaks;
+}
+
+function sections() {
+  return Array.from(frame.contentDocument?.querySelectorAll("body > [data-modu-section]") || []);
+}
+
+function sectionTop(node) {
+  return node.getBoundingClientRect().top + pager.top;
+}
+
+function flowLocation(top) {
+  const list = sections();
+  const node = list.findLast(node => sectionTop(node) <= top + 1) || list[0];
+  if (!node) return {...spot};
+  const height = Math.max(1, node.getBoundingClientRect().height);
+  const local = Math.max(0, top - sectionTop(node));
+  return {index: Number(node.dataset.moduSection), offset: Math.min(1, local / height), scroll: Math.min(1, local / Math.max(1, height - pager.height))};
+}
+
+function flowTop(position) {
+  const node = sections().find(node => Number(node.dataset.moduSection) === position.index);
+  if (!node) return 0;
+  const height = node.getBoundingClientRect().height;
+  return sectionTop(node) + (Number.isFinite(position.offset) ? position.offset * height : position.scroll * Math.max(0, height - pager.height));
+}
+
+function applyReadingStyle() {
+  const doc = frame.contentDocument;
+  if (!doc?.head || !shelfData) return;
+  let style = doc.getElementById("modu-reading-style");
+  if (!style) { style = doc.createElement("style"); style.id = "modu-reading-style"; doc.head.append(style); }
+  const prefs = readingOptions();
+  const body = flowMode() ? ".modu-body" : "body";
+  const gap = [0.35, 1, 1.6][prefs.spacing];
+  style.textContent = `
+    ${body} {display:flow-root!important;box-sizing:border-box!important;width:100%!important;max-width:${prefs.read_width}ch!important;margin-inline:auto!important;padding-inline:clamp(12px,3vw,28px)!important;overflow-wrap:break-word!important;color:var(--modu-fg)!important;background:transparent!important}
+    ${body} p {margin-block:${gap}em!important}
+    ${body} img, ${body} svg {max-width:100%!important;object-fit:contain}
+    ${body} pre, ${body} table {max-width:100%;overflow-x:auto}
+    ::highlight(modu-search) {background:#d4b477;color:#171717}
+    [data-modu-section] {display:flow-root;min-height:1px}
+    .modu-html {color:var(--modu-fg);background:transparent!important}
+  `;
+}
+
+async function saveReadingOption(control, change) {
+  control.disabled = true;
+  const old = {...readingOptions()};
+  const current = {...spot};
+  const anchor = pager?.anchor;
+  const portable = captureLayoutAnchor();
+  try {
+    shelfData.readingOptions = await api("api/reading-options", change);
+    pageHistory.length = 0;
+    if (book && book.format !== "pdf") {
+      if (old.chapter_breaks !== readingOptions().chapter_breaks) {
+        layoutAnchor = portable;
+        clearPager();
+        jump(current);
+      } else {
+        applyReadingStyle();
+        if (anchor?.range.startContainer.isConnected && pager) {
+          const rect = anchor.range.getBoundingClientRect();
+          pager.show(pager.top + rect.top - pager.viewport.top - anchor.inset);
+        } else if (pager) {
+          flowMode() ? pager.show(flowTop(current)) : pager.restore(current);
+        }
+        updatePosition();
+      }
+    }
+    toast(label("saved"));
+  } finally {
+    const key = Object.keys(change)[0];
+    if (control.type === "checkbox") control.checked = readingOptions()[key];
+    else control.value = String(readingOptions()[key]);
+    control.disabled = false;
+  }
+}
+
+function jumpFlow(value, fragment, turning) {
+  if (!turning) pageHistory.length = 0;
+  clearSelection();
+  spot = boundedSpot(value);
+  const node = sections().find(node => Number(node.dataset.moduSection) === spot.index);
+  if (node && pager) {
+    if (fragment) {
+      const target = Array.from(node.querySelectorAll("[id], [name]")).find(child => child.id === fragment || child.getAttribute("name") === fragment);
+      target?.scrollIntoView();
+      pager.prepare();
+    } else {
+      pager.show(flowTop(spot), value.endLocation ? flowTop(value.endLocation) : undefined);
+    }
+    updatePosition();
+    ensureFlow().catch(report);
+    return;
+  }
+  clearPager();
+  const url = endpoint(bookPath() + "/flow/" + spot.index);
+  pendingFrame = {url: url.pathname, position: {...spot}, fragment};
+  clearInterval(frameObserver);
+  frame.src = url;
+  frame.hidden = false;
+  $("reader-state").hidden = true;
+  updateProgress();
+}
+
+async function ensureFlow() {
+  if (!flowMode() || !pager || pendingFrame) return;
+  const doc = frame.contentDocument;
+  if (flowRequest?.doc === doc) return flowRequest.promise;
+  const active = {doc};
+  active.promise = (async () => {
+    const item = book;
+    while (book === item && frame.contentDocument === doc && flowMode() && pager && pager.extent - pager.top < pager.height * 2 + 100) {
+      const last = sections().at(-1);
+      const index = Number(last.dataset.moduSection) + 1;
+      if (index >= total()) return;
+      const result = await api(bookPath(item) + "/section/" + index);
+      if (book !== item || frame.contentDocument !== doc || !flowMode() || !pager) return;
+      const top = pager.top;
+      const template = doc.createElement("template");
+      template.innerHTML = result.html;
+      doc.body.insertBefore(template.content, pager.tail || null);
+      // Decode images before measuring the next page to avoid late vertical shifts.
+      const added = sections().at(-1);
+      await Promise.allSettled(Array.from(added.querySelectorAll("img"), image => image.decode?.()));
+      if (frame.contentDocument !== doc || !pager) return;
+      pager.show(top);
+      if (book.format === "epub") bindImages(doc);
+      highlightWords();
+    }
+  })();
+  flowRequest = active;
+  try { await active.promise; } finally { if (flowRequest === active) flowRequest = undefined; }
+}
+
+function searchableText(surface) {
+  const doc = surface.ownerDocument;
+  const walker = doc.createTreeWalker(surface, NodeFilter.SHOW_TEXT);
+  const mapping = [];
+  let text = "", node, whitespace = false;
+  while ((node = walker.nextNode())) {
+    if (node.parentElement.closest("style,script,head,[hidden]")) continue;
+    for (let offset = 0; offset < node.length; offset++) {
+      const char = node.data[offset];
+      if (/\s/u.test(char)) {
+        if (text && !whitespace) { text += " "; mapping.push([node, offset]); }
+        whitespace = true;
+      } else {
+        text += char; mapping.push([node, offset]); whitespace = false;
+      }
+    }
+  }
+  return {text: text.trimEnd(), mapping};
+}
+
+function literalMatches(text, query) {
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return text.matchAll(new RegExp(escaped, "giu"));
+}
+
+function applySearchHit() {
+  if (!pendingSearch || !pager || pendingFrame || pendingSearch.book !== book?.id || spot.index !== pendingSearch.index) return;
+  const hit = pendingSearch;
+  pendingSearch = undefined;
+  const surface = book.format === "pdf" ? pdfView.querySelector(".textLayer") : flowMode() ? sections().find(node => Number(node.dataset.moduSection) === hit.index) : frame.contentDocument.body;
+  if (!surface) return;
+  const {text, mapping} = searchableText(surface);
+  const matches = Array.from(literalMatches(text, hit.query));
+  const match = matches[hit.occurrence] || matches[0];
+  if (!match || !mapping[match.index]) return;
+  const range = surface.ownerDocument.createRange();
+  const [first, start] = mapping[match.index];
+  const [last, end] = mapping[match.index + match[0].length - 1];
+  range.setStart(first, start); range.setEnd(last, end + 1);
+  const rect = range.getBoundingClientRect();
+  pager.show(pager.top + rect.top - pager.viewport.top - 20);
+  const view = surface.ownerDocument.defaultView;
+  if (view.CSS?.highlights && view.Highlight) view.CSS.highlights.set("modu-search", new view.Highlight(range));
+  updatePosition();
+}
+
+function searchBook() {
+  if (!book) return;
+  const item = book;
+  const input = element("input");
+  input.type = "search"; input.maxLength = 200; input.placeholder = label("searchHint");
+  input.setAttribute("aria-label", label("searchBook"));
+  const info = element("p", "", "muted");
+  info.setAttribute("role", "status");
+  const results = element("div", null, "search-results");
+  const run = async () => {
+    const generation = ++searchGeneration;
+    const query = input.value.replace(/\s+/gu, " ").trim();
+    results.replaceChildren();
+    if (!query) { info.textContent = ""; return; }
+    info.textContent = label("searching");
+    try {
+      let data;
+      if (item.format === "pdf") {
+        if (!pdfDocument) throw Error("pdfError");
+        data = {results: [], more: false};
+        const pdf = pdfDocument;
+        for (let index = 0; index < pdf.numPages; index++) {
+          if (generation !== searchGeneration || book !== item || !dialog.open) return;
+          const page = await pdf.getPage(index + 1);
+          const content = await page.getTextContent();
+          const text = content.items.map(item => item.str || "").join("").replace(/\s+/gu, " ").trim();
+          let occurrence = 0;
+          for (const match of literalMatches(text, query)) {
+            data.results.push({index, occurrence: occurrence++, snippet: text.slice(Math.max(0, match.index - 45), match.index + query.length + 75)});
+            if (data.results.length > 200) { data.more = true; break; }
+          }
+          if (data.more) { data.results.length = 200; break; }
+        }
+      } else data = await api(bookPath(item) + "/search", {query});
+      if (generation !== searchGeneration || book !== item || !dialog.open || input.value.replace(/\s+/gu, " ").trim() !== query) return;
+      info.textContent = data.results.length ? data.more ? label("searchMore") : `${data.results.length} ${label("searchResults")}` : label("noResults");
+      for (const hit of data.results) {
+        const row = button("", () => {
+          dialog.close();
+          pendingSearch = {...hit, query, book: item.id};
+          jump({index: hit.index, scroll: 0});
+          applySearchHit();
+        });
+        row.append(element("small", item.format === "pdf" ? `${label("page")} ${hit.index + 1}` : item.chapters[hit.index].label), element("span", hit.snippet));
+        results.append(row);
+      }
+    } catch (error) { if (generation === searchGeneration) info.textContent = label(error.message); }
+  };
+  input.addEventListener("input", () => { searchGeneration++; results.replaceChildren(); info.textContent = ""; });
+  input.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); run(); } });
+  showDialog(label("searchBook"), [input, button(label("search"), run), info, results]);
+  input.focus();
 }
 
 function translationOptions() {
@@ -1045,7 +1383,8 @@ function bindImages(doc) {
     if (url.origin === prefix.origin && url.pathname.startsWith(prefix.pathname)) return url.href;
   }
   for (const image of doc.querySelectorAll("img, svg image")) {
-    if (!imageSource(image)) continue;
+    if (boundImages.has(image) || !imageSource(image)) continue;
+    boundImages.add(image);
     image.style.cursor = "zoom-in";
     if (!image.closest("a")) {
       image.setAttribute("tabindex", "0");
@@ -1455,13 +1794,14 @@ function keyboard(event) {
   }
   if (tag === "BUTTON") return;
   const actions = {
-    c: () => $("toc-button").click(), b: addMark, s: settings,
+    c: () => $("toc-button").click(), b: addMark, s: settings, "/": searchBook, w: vocabulary,
     t: () => $("theme-button").click(),
   };
   if (actions[event.key]) { event.preventDefault(); actions[event.key](); }
 }
 
 $("settings-button").onclick = settings;
+$("search-button").onclick = searchBook;
 $("vocabulary-button").onclick = vocabulary;
 dialog.addEventListener("close", stopSpeech);
 bindVocabulary(document);

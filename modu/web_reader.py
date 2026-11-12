@@ -24,6 +24,7 @@ from .themes import LIGHT_PALETTES, PALETTES
 from .translation import (
     LANGUAGES, TranslationError, options_for, pronunciation, set_option, set_target, settings_for, translate_selection,
 )
+from .web_content import WebContent, reading_options
 from .web_epub import EpubBook
 from .web_pdf import PdfAssets
 
@@ -81,6 +82,7 @@ class Reader:
         self.epub = lru_cache(maxsize=2)(EpubBook)
         self.document = lru_cache(maxsize=2)(library.load)
         self.pdf = PdfAssets(library.root)
+        self.content = WebContent(self)
 
     def shelf(self):
         fields = ("id", "title", "author", "format", "archived")
@@ -106,6 +108,7 @@ class Reader:
             "languages": LANGUAGES,
             "translation": settings_for(self.library, None),
             "translationOptions": options_for(self.library),
+            "readingOptions": reading_options(self.library),
         }
 
     def book(self, identifier):
@@ -149,7 +152,7 @@ class Reader:
         document = self.document(identifier)
         if not 0 <= index < len(document.chapters):
             raise FileNotFoundError
-        start, _ = document.chapters[index]
+        start = document.chapters[index][0] if index else 0
         end = document.chapters[index + 1][0] if index + 1 < len(document.chapters) else len(document.blocks)
         tags = {"heading": "h2", "code": "pre"}
         html = []
@@ -182,6 +185,8 @@ class Reader:
         self.book(identifier)
         if action in {"position", "mark"}:
             return self.save_reading(identifier, action, location(data), data.get("remove") is True)
+        if action == "search":
+            return self.content.search(identifier, data.get("query"))
         if action == "translation":
             set_target(self.library, identifier, data.get("target"))
             return settings_for(self.library, identifier)
@@ -200,6 +205,8 @@ class Reader:
             self.library.delete_book(identifier)
             self.document.cache_clear()
             self.epub.cache_clear()
+            self.content.section.cache_clear()
+            self.content.search_text.cache_clear()
             return {}
         raise FileNotFoundError
 
@@ -329,6 +336,19 @@ class Handler(BaseHTTPRequestHandler):
         book, source = reader.book(identifier)
         if asset is None:
             return self.json(reader.describe(identifier, book, source))
+        if asset.startswith(("flow/", "section/")) and source.suffix != ".pdf":
+            index = int(asset.split("/")[1])
+            prefix = f"{self.server.prefix}book/{identifier}/epub/"
+            section = reader.content.section(identifier, index, prefix)
+            if asset.startswith("section/"):
+                return self.json({"html": section})
+            data = ('<!doctype html><html><head><meta charset="utf-8"><style>' + EPUB_BRIDGE
+                    + 'body{margin:0} [data-modu-section]{display:flow-root;position:relative;overflow-wrap:break-word}'
+                    + '</style></head><body>' + section + '</body></html>').encode()
+            base = self.server.origin + prefix
+            return self.send_data(data, "text/html; charset=utf-8", csp=(
+                f"default-src 'none'; style-src 'unsafe-inline' {base}; img-src {base}; font-src {base}; " + BOOK_SANDBOX
+            ))
         if asset == "pdf" and source.suffix == ".pdf":
             return self.send_data(read_bounded(source, MAX_SOURCE_BYTES), "application/pdf")
         if asset.startswith("epub/") and source.suffix == ".epub":
@@ -380,6 +400,8 @@ class Handler(BaseHTTPRequestHandler):
         if route == "api/translation":
             set_target(reader.library, None, data.get("target"))
             return self.json(settings_for(reader.library, None))
+        if route == "api/reading-options":
+            return self.json(reading_options(reader.library, data))
         if route == "api/translation-options":
             return self.json(set_option(reader.library, data))
         if route == "api/vocabulary":

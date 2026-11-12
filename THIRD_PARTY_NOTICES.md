@@ -9,6 +9,8 @@ MODU's original source and sample text use MIT. The table reflects the locked ru
 | Textual | 6.12.0 | MIT |
 | Rich | 15.0.0 | MIT |
 | pypdf | 7.0.0 | BSD-3-Clause |
+| tinycss2 | 1.5.1 | BSD-3-Clause |
+| webencodings | 0.6.1 | BSD-3-Clause |
 | Beautiful Soup | 4.15.0 | MIT |
 | Soup Sieve | 4.0.1 / 2.10 (older Python 3.11 patch releases) | MIT |
 | markdown-it-py | 4.2.0 | MIT |

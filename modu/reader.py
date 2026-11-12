@@ -1,6 +1,6 @@
 from __future__ import annotations
 import time
-from collections import deque
+from collections import deque, OrderedDict
 from bisect import bisect_right
 import regex
 from rich.segment import Segment
@@ -32,6 +32,11 @@ class Reader(Widget, can_focus=True):
     class PositionChanged(Message):
         pass
 
+    class SelectionFinished(Message):
+        def __init__(self, text, entry=None):
+            super().__init__()
+            self.text, self.entry = text, entry
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.doc: Document | None = None
@@ -51,6 +56,10 @@ class Reader(Widget, can_focus=True):
         self.rail = None
         self.page_history = deque(maxlen=512)
         self.page_geometry = None
+        self.selection_start = self.selection_end = None
+        self.selecting = False
+        self.saved_words = {}
+        self.word_cache = OrderedDict()
 
     def on_mount(self):
         self.set_interval(0.1, self.hide_scrollbar)
@@ -70,6 +79,8 @@ class Reader(Widget, can_focus=True):
     def load(self, document, anchor=0):
         self.page_history.clear()
         self.doc = document
+        self.clear_selection()
+        self.word_cache.clear()
         self.layout_engine = Layout(
             document, self.body_width, self.paragraph_spacing, self.chapter_breaks
         )
@@ -81,6 +92,7 @@ class Reader(Widget, can_focus=True):
     def reflow(self):
         if self.layout_engine is None:
             return
+        self.clear_selection()
         geometry = (self.body_width, self.body_height, self.paragraph_spacing, self.chapter_breaks)
         if geometry != self.page_geometry:
             self.page_history.clear()
@@ -153,6 +165,7 @@ class Reader(Widget, can_focus=True):
         self.set_position(target)
 
     def set_position(self, position):
+        self.clear_selection()
         self.pos = position
         # Avoid a blank-only top row when paging to the last paragraph gap.
         b, r = self.pos
@@ -227,6 +240,10 @@ class Reader(Widget, can_focus=True):
         event.stop()
 
     def on_mouse_move(self, event: events.MouseMove):
+        if self.selecting:
+            self.selection_end = self.offset_at(event.x, event.y)
+            self.refresh()
+            event.stop()
         if event.x >= self.size.width - 2:
             self.show_scrollbar()
 
@@ -235,8 +252,81 @@ class Reader(Widget, can_focus=True):
             ratio = max(0, min(1, (y - 1) / max(1, self.size.height - 3)))
             self.jump(round(ratio * len(self.doc.text)))
 
+    def clear_selection(self):
+        if self.selecting:
+            self.release_mouse()
+        self.selecting = False
+        self.selection_start = self.selection_end = None
+
+    @property
+    def selected_text(self):
+        if self.doc and self.selection_start is not None and self.selection_end is not None:
+            start, end = sorted((self.selection_start, self.selection_end))
+            return self.doc.text[start:end].strip()
+        return ""
+
+    def offset_at(self, x, y):
+        if not self.rows:
+            return self.anchor
+        row = max(0, min(len(self.rows) - 1, y - 1))
+        start, end, content, _ = self.rows[row]
+        cell = max(0, x - self.left_margin)
+        column = 0
+        for cluster in regex.finditer(r"\X", content):
+            size = cell_len(cluster[0])
+            if column + size > cell:
+                return start + cluster.start()
+            column += size
+        return end
+
+    def word_spans(self, block_index):
+        if block_index in self.word_cache:
+            self.word_cache.move_to_end(block_index)
+            return self.word_cache[block_index]
+        block = self.doc.blocks[block_index]
+        spans = [(block.start + m.start(), block.start + m.end(), m[0].replace("’", "'").lower())
+                 for m in regex.finditer(r"\p{L}[\p{L}\p{M}]*(?:['’-][\p{L}\p{M}]+)*", block.text)]
+        self.word_cache[block_index] = spans
+        if len(self.word_cache) > 512:
+            self.word_cache.popitem(last=False)
+        return spans
+
+    def row_words(self, start, end):
+        if not self.doc or not self.saved_words:
+            return []
+        block, _ = self.doc.locate(start)
+        return [(a, b, self.saved_words[key]) for a, b, key in self.word_spans(block)
+                if a < end and b > start and key in self.saved_words]
+
     def on_mouse_down(self, event: events.MouseDown):
         self.focus()
+        if event.button != 1 or not self.rows:
+            return
+        self.selection_start = self.selection_end = self.offset_at(event.x, event.y)
+        self.selecting = True
+        self.capture_mouse()
+        self.refresh()
+        event.stop()
+
+    def on_mouse_up(self, event: events.MouseUp):
+        if not self.selecting:
+            return
+        self.selection_end = self.offset_at(event.x, event.y)
+        self.selecting = False
+        self.release_mouse()
+        if self.selected_text:
+            self.post_message(self.SelectionFinished(self.selected_text))
+        else:
+            offset = self.selection_end
+            for start, end, entry in self.row_words(offset, offset + 1):
+                if start <= offset < end:
+                    self.post_message(self.SelectionFinished(entry["word"], entry))
+                    break
+        self.refresh()
+        event.stop()
+
+    def on_mouse_release(self):
+        self.selecting = False
 
     def render_line(self, y: int) -> Strip:
         width = self.size.width
@@ -253,6 +343,12 @@ class Reader(Widget, can_focus=True):
                 bold=kind == "heading",
             )
             text = Text(content, style=style, no_wrap=True, overflow="crop")
+            for a, b, _entry in self.row_words(start, end):
+                text.stylize(Style(color=accent, underline=True), max(0, a - start), min(len(content), b - start))
+            if self.selection_start is not None and self.selection_end is not None:
+                a, b = sorted((self.selection_start, self.selection_end))
+                if a < end and b > start:
+                    text.stylize(Style(color=bg, bgcolor=accent), max(0, a - start), min(len(content), b - start))
             if self.highlight:
                 text.highlight_words(
                     [self.highlight], Style(color=bg, bgcolor=accent), case_sensitive=False

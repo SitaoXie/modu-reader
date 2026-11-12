@@ -20,6 +20,9 @@ from .safety import import_paths
 from .model import clean, PageIndex
 from .terminal_render import anchor_update
 from .reader import Reader, ReaderRail
+from .vocabulary import Vocabulary
+from .translation import options_for, settings_for
+from .terminal_translation import TranslationModal, TranslationSettings, VocabularyModal, label as lookup_label
 from .scrollbars import SolidScrollBarRender
 from .themes import PALETTES, LIGHT_PALETTES
 from .i18n import translate, normalize_language, message
@@ -249,6 +252,7 @@ class HelpModal(LocalizedModal):
                 ),
                 id="help-text",
             )
+            yield Static(lookup_label(self.app, "hint"), classes="dialog-hint")
             yield Button(self.tr("继续阅读  Esc"), id="close")
 
     @on(Button.Pressed)
@@ -278,12 +282,15 @@ class ModuApp(App):
         Binding("a", "archive_book", "归档/恢复"),
         Binding("d", "delete_book", "删除书籍"),
         Binding("v", "archive_view", "归档书架"),
+        Binding("f", "translate", "翻译"),
+        Binding("w", "vocabulary", "生词本"),
         Binding("question_mark", "help", "帮助"),
     ]
 
     def __init__(self, library: Library, start_book=None, shelf=False):
         super().__init__()
         self.library = library
+        self.vocabulary = Vocabulary(library)
         self.language = normalize_language(library.setting("language", "zh"))
         self.title = "墨读 MODU" if self.language == "zh" else "MODU"
         self.sub_title = self.tr("离线阅读 · 字里行间")
@@ -670,6 +677,7 @@ class ModuApp(App):
             self.sync_sidebar()
             reader.highlight = ""
             reader.load(doc, book["position"])
+            self.refresh_vocabulary()
             self.call_after_refresh(reader.reflow)
             self.notice(
                 " · ".join(message(self.language, warning) for warning in doc.warnings)
@@ -1002,8 +1010,10 @@ class ModuApp(App):
             [
                 (self.tr("段间留白  ·  舒展"), "spacing:1"),
                 (self.tr("段间留白  ·  紧凑"), "spacing:0"),
+                (self.tr("段间留白  ·  宽松"), "spacing:2"),
             ]
         )
+        options.extend([(lookup_label(self, "settings"), "translation:settings"), (lookup_label(self, "vocabulary"), "translation:vocabulary")])
         options.extend([("语言 · 中文", "language:zh"), ("Language · English", "language:en")])
         self.push_screen(
             ChoiceModal(
@@ -1018,7 +1028,11 @@ class ModuApp(App):
         if not result:
             return
         reader = self.query_one(Reader)
-        if result.startswith("language:"):
+        if result == "translation:settings":
+            self.push_screen(TranslationSettings())
+        elif result == "translation:vocabulary":
+            self.action_vocabulary()
+        elif result.startswith("language:"):
             self.set_language(result.split(":")[1])
         elif result == "chapters:toggle":
             reader.chapter_breaks = not reader.chapter_breaks
@@ -1034,6 +1048,38 @@ class ModuApp(App):
             reader.reflow()
         else:
             self.apply_theme(result)
+
+    def refresh_vocabulary(self):
+        reader = self.query_one(Reader)
+        target = settings_for(self.library, self.book_id)["target"]
+        reader.saved_words = {entry["word_key"]: entry for entry in reversed(self.vocabulary.entries()) if entry["target"] == target}
+        reader.refresh()
+
+    @on(Reader.SelectionFinished)
+    def selected_text(self, event):
+        if not self.reading or not self.unobstructed:
+            return
+        if event.entry:
+            self.push_screen(TranslationModal(event.text, event.entry))
+        elif options_for(self.library)["automatic"]:
+            if len(event.text) > 600:
+                self.notice(lookup_label(self, "too_long"))
+            else:
+                self.push_screen(TranslationModal(event.text, automatic=True))
+        else:
+            self.notice(lookup_label(self, "hint"))
+
+    def action_translate(self):
+        if self.reading and self.unobstructed:
+            selected = self.query_one(Reader).selected_text
+            if len(selected) > 600:
+                self.notice(lookup_label(self, "too_long"))
+                return
+            self.push_screen(TranslationModal(" ".join(selected.split()), automatic=bool(selected)))
+
+    def action_vocabulary(self):
+        if self.unobstructed:
+            self.push_screen(VocabularyModal())
 
     def action_help(self):
         if self.unobstructed:

@@ -62,7 +62,7 @@ modu
 
 Antigravity 官方文档也说明了侧栏终端，但本项目尚未完成其原生交互验收，暂列“可尝试、未实测”，不列为已验证支持。[官方说明](https://antigravity.google/docs/features#integrated-terminal)
 
-**状态：1.3.0b7 开源候选版。** macOS 已本地验证，包括用户在目标内置终端确认右侧轨道对齐和隐藏正常。Windows/Linux 提供跨平台代码和 CI 配置，原生终端体验尚未验收。Windows 可在 Windows Terminal + PowerShell 中尝试相同命令；需要支持鼠标和真彩色的终端。界面支持简体中文和英文；书籍正文保留原文。
+**状态：1.3.0b8 开源候选版。** macOS 已本地验证，包括用户在目标内置终端确认右侧轨道对齐和隐藏正常。Windows/Linux 提供跨平台代码和 CI 配置，原生终端体验尚未验收。Windows 可在 Windows Terminal + PowerShell 中尝试相同命令；需要支持鼠标和真彩色的终端。界面支持简体中文和英文；书籍正文保留原文。
 
 ## 界面语言
 
@@ -110,7 +110,11 @@ Web 视图共享书架和主题，单独保存阅读位置与书签。EPUB 保�
 
 单词翻译后可「加入生词本」，再次点击同一个「已收藏」按钮即可取消，正文标注同步更新。在阅读栏打开「生词本」可查找、修改译文或删除。词条保存在本机书库，按原文语言和目标语言区分，跨书籍使用。后续出现的同词会标出，点击即可查看已保存的译文，英文匹配忽略大小写。正文标注需要支持 CSS Custom Highlight 的现代浏览器。
 
-用 `←` / `→`、`PgUp` / `PgDn` 或底部按钮翻屏。读完当前节才进入下一节。高于视口的 PDF 原页也会分屏，底部仍显示原页码。目录用于直接跳转。
+用 `←` / `→`、`PgUp` / `PgDn` 或底部按钮翻屏。开启章节另起页时，读完当前节才进入下一节。高于视口的 PDF 原页也会分屏，底部仍显示原页码。目录用于直接跳转。
+
+终端版也支持同一套翻译与生词功能：鼠标拖选后按 `f`，或按 `f` 输入文字；按 `s` 进入「翻译设置」切换引擎、自动划词与目标语言。词卡提供英美音标、发音按钮及收藏切换，`w` 打开生词本，可查找和编辑译文。正文已收藏单词带下划线，点击直接显示保存的译文。两端共用同一个书库的引擎、语言偏好和生词数据。Mac 使用系统播放器和语音；Linux 发音需要 `ffplay`/`mpg123` 与 `espeak-ng`/`espeak`，Windows 提供系统播放路径但尚未原生验收。
+
+Web 的「搜索」或 `/` 可搜索整本 EPUB、TXT、Markdown，以及有文字层的 PDF，结果显示所在章节或原页，点击定位并标记命中文字。「设置 → 阅读排版」提供 64/80/96 ch 正文宽度、三档段间距和默认开启的「章节另起一页」。关闭后按需接入后续章节，在同一屏连续阅读；这些排版偏好与终端共享。PDF 保留固定原页，因此不应用这三项重排设置。
 
 ## 阅读功能
 
@@ -131,6 +135,7 @@ Web 视图共享书架和主题，单独保存阅读位置与书签。EPUB 保�
 | 逐行 | ↑ ↓ / k j |
 | 开头 / 结尾 | Home / End |
 | 目录 / 前后章节 | c / p n |
+| 翻译选区或输入文字 / 生词本 | f / w |
 | 全文搜索 | /，输入后 Enter，选择结果后 Enter |
 | 添加或取消当前书签 / 书签列表 | b / m |
 | 主题 / 阅读设置 | t / s |
@@ -187,6 +192,7 @@ uv run python tools/scan_secrets.py .
 ```sh
 uv run python tests/acceptance_language.py --book examples/first-pages.en.txt --work ./test-artifacts/language
 uv run python tests/acceptance_pty.py examples/river.txt --work ./test-artifacts/pty
+uv run python tests/acceptance_translation.py --work ./test-artifacts/translation
 uv run python tests/acceptance_cursor.py --work ./test-artifacts/cursor
 uv run python tests/acceptance_chapters.py --work ./test-artifacts/chapters
 uv run python tests/acceptance_scrollbar.py --python .venv/bin/python --work ./test-artifacts/rail

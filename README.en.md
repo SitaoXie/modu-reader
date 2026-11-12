@@ -62,7 +62,7 @@ These workflows need no dedicated integration. MODU does not read AI conversatio
 
 Antigravity also documents a side-panel terminal. Its native interaction has not been tested here, so it is listed as “possible, untested,” rather than verified support. [Official documentation](https://antigravity.google/docs/features#integrated-terminal)
 
-**Status: 1.3.0b7 open-source release candidate.** Locally validated on macOS, including user confirmation of right-rail alignment and hiding in the target embedded terminal. Windows/Linux code paths and CI definitions are included, but native terminal acceptance is pending. The same commands can be tried in Windows Terminal with PowerShell. Use a terminal with mouse and truecolor support. The interface supports English and Simplified Chinese; book text stays in its original language.
+**Status: 1.3.0b8 open-source release candidate.** Locally validated on macOS, including user confirmation of right-rail alignment and hiding in the target embedded terminal. Windows/Linux code paths and CI definitions are included, but native terminal acceptance is pending. The same commands can be tried in Windows Terminal with PowerShell. Use a terminal with mouse and truecolor support. The interface supports English and Simplified Chinese; book text stays in its original language.
 
 ## Interface language
 
@@ -110,6 +110,10 @@ Translate a word and choose **Save word**. Click the same **Saved** button again
 
 Use `←` / `→`, `PgUp` / `PgDn`, or the footer buttons to turn one screen at a time. Tall PDF pages span several screens and keep their original page number in the footer. Use Contents to jump directly.
 
+The terminal offers the same translation and vocabulary features. Drag to select and press `f`, or press `f` to type text. Open **Translation settings** through `s` to choose an engine, automatic selection translation and target languages. Word cards provide UK/US IPA, pronunciation and a save/remove toggle. Press `w` to search vocabulary or edit meanings; click an underlined saved word to view its cached meaning. Both readers share translation preferences and vocabulary in the same library. macOS uses system audio and speech. Linux needs `ffplay`/`mpg123` for audio and `espeak-ng`/`espeak` for speech. Windows system playback paths are implemented but not natively validated.
+
+Web **Search**, also available with `/`, searches the whole EPUB, TXT, Markdown or text-layer PDF. Results identify the chapter or original page and jump to highlighted text. **Settings → Reading layout** offers 64/80/96 ch widths, three paragraph spacings and **Start chapters on a new page**, enabled by default. Turn it off to continue into the next chapter on the same screen, loading later chapters on demand. These layout preferences are shared with the terminal. PDF retains fixed original pages, so these three reflow settings do not apply.
+
 ## Reading features
 
 - Import local TXT, EPUB, PDF, and Markdown files as independent library copies, with their storage directory shown during import. After a successful import, editing, moving or deleting the original does not affect reading; source changes are not synced.
@@ -129,6 +133,7 @@ Use `←` / `→`, `PgUp` / `PgDn`, or the footer buttons to turn one screen at 
 | Move one line | Up Down / k j |
 | Start / end | Home / End |
 | Contents / previous or next chapter | c / p n |
+| Translate selection or typed text / vocabulary | f / w |
 | Search | /, type, Enter, select a result, Enter |
 | Toggle bookmark / list bookmarks | b / m |
 | Theme / reading settings | t / s |
@@ -185,6 +190,7 @@ Real POSIX terminal regression requires `tmux` on PATH:
 ```sh
 uv run python tests/acceptance_language.py --book examples/first-pages.en.txt --work ./test-artifacts/language
 uv run python tests/acceptance_pty.py examples/river.txt --work ./test-artifacts/pty
+uv run python tests/acceptance_translation.py --work ./test-artifacts/translation
 uv run python tests/acceptance_cursor.py --work ./test-artifacts/cursor
 uv run python tests/acceptance_chapters.py --work ./test-artifacts/chapters
 uv run python tests/acceptance_scrollbar.py --python .venv/bin/python --work ./test-artifacts/rail

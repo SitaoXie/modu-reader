@@ -1,8 +1,8 @@
 # 安全与隐私 / Security and privacy
 
-生词、译文和查询过的音标保存在本机书库数据库。在线翻译模式将所选英文单词发送给有道查询音标，本地翻译模式需主动点击查询。英、美发音按钮把原文发送给有道获取音频，翻译选项中也提供本地浏览器语音。
+生词、译文和查询过的音标保存在本机书库数据库。在线翻译模式将所选英文单词发送给有道查询音标，本地翻译模式需主动点击查询。英、美发音按钮把原文发送给有道获取音频，翻译选项中也提供本地浏览器语音；终端使用系统播放器或本地语音进程，通过独立参数或标准输入传值，不执行 shell 命令。临时音频在播放结束或取消后清理。
 
-Vocabulary, meanings and retrieved IPA are stored in the local library database. Online translation sends selected English words to Youdao for IPA lookup. On-device translation requires an explicit lookup. British and American speaker buttons send the original text to Youdao for audio. Local browser pronunciation is available in translation options.
+Vocabulary, meanings and retrieved IPA are stored in the local library database. Online translation sends selected English words to Youdao for IPA lookup. On-device translation requires an explicit lookup. British and American speaker buttons send the original text to Youdao for audio. Local browser pronunciation is available in translation options. The terminal uses system audio or speech processes with argument arrays or stdin, without a shell. Temporary audio is removed after playback or cancellation.
 
 MODU 在本机复制和解析明确选择的书籍。不包含遥测、书中脚本执行或自动更新。Web 阅读会在本机回环地址开启临时服务，按会话限制访问，书中资源仅从书库读取。PDF.js 和本地翻译模型按需从其发行方下载。翻译默认在本机处理。选择在线引擎后，翻译请求仅把选区和语种通过 HTTPS 发给有道或 Google。SQLite 语句使用参数绑定；缓存不使用 pickle；导入不使用 shell。
 

@@ -132,3 +132,14 @@ dialog.image-dialog { width: min(1100px, 94vw); }
   footer button { font-size: .84rem; padding-inline: .3rem; }
   #progress { font-size: .8rem; white-space: nowrap; }
 }
+
+.search-results { max-height: 50dvh; overflow-y: auto; display: grid; gap: .35rem; }
+.search-results button { display: grid; text-align: left; gap: .3rem; overflow-wrap: anywhere; }
+.search-results small { color: var(--accent); }
+#dialog-body h3 { margin: 1rem 0 .2rem; font-size: .95rem; color: var(--accent); }
+::highlight(modu-search) { background: #d4b477; color: #171717; }
+@media (max-width: 540px) {
+  .bookbar { gap: .15rem; }
+  #book-title { flex-basis: calc(100% - 100px); }
+  .bookbar button { font-size: .85rem; padding: .3rem .45rem; }
+}

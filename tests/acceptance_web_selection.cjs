@@ -101,20 +101,20 @@ with serve(library, book, port=0) as url:
     assert.equal(await automatic.isChecked(), false);
     await engine.selectOption('google');
     await page.getByText(/Online translation sends/).waitFor();
-    await page.keyboard.press('Escape');
+    await page.locator('#dialog .dialog-title button').click();
     await dragText();
     await page.mouse.up();
     await page.locator('#selection').waitFor();
     assert.equal(requests.length, 0, 'Manual mode sent a request without a click');
     await page.locator('#selection').click();
     await page.locator('.translation-result').getByText('安静的房间是读书的好地方。').waitFor();
-    await page.keyboard.press('Escape');
+    await page.locator('#dialog .dialog-title button').click();
     await settings.click();
     await engine.selectOption('youdao');
-    await page.waitForFunction(() => !document.querySelector('#dialog select').disabled);
+    await page.waitForFunction(() => !document.querySelector('#dialog select[aria-label="Translation engine"]').disabled);
     await automatic.check();
-    await page.waitForFunction(() => !document.querySelector('#dialog input[type=checkbox]').disabled);
-    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !Array.from(document.querySelectorAll('#dialog label')).find(node=>node.textContent.includes('Translate automatically when selection ends')).querySelector('input').disabled);
+    await page.locator('#dialog .dialog-title button').click();
     await page.reload();
     await chapter.locator('#line').waitFor();
     await dragText();
@@ -184,11 +184,11 @@ with serve(library, book, port=0) as url:
     await page.getByRole('textbox', {name:'Meaning', exact:true}).fill('宁静的');
     await page.getByRole('button', {name:'Save', exact:true}).click();
     await page.getByRole('button', {name:'quiet · 宁静的', exact:true}).waitFor();
-    await page.keyboard.press('Escape');
+    await page.locator('#dialog .dialog-title button').click();
     await settings.click();
     await automatic.uncheck();
-    await page.waitForFunction(() => !document.querySelector('#dialog input[type=checkbox]').disabled);
-    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !Array.from(document.querySelectorAll('#dialog label')).find(node=>node.textContent.includes('Translate automatically when selection ends')).querySelector('input').disabled);
+    await page.locator('#dialog .dialog-title button').click();
     await page.mouse.dblclick(frameBox.x + quiet.x, frameBox.y + quiet.y);
     await page.locator('#selection').click();
     const manualToggle = page.locator('#dialog .save-word');
@@ -199,7 +199,7 @@ with serve(library, book, port=0) as url:
     await manualToggle.click();
     await page.getByRole('button', {name:'Remove word', exact:true}).waitFor();
     assert.deepEqual(await highlighted(), ['quiet','QUIET','quiet']);
-    await page.keyboard.press('Escape');
+    await page.locator('#dialog .dialog-title button').click();
     for (const target of ['img', 'svg image']) {
       await chapter.locator(target).click();
       const enlarged = page.locator('.image-viewport img');
@@ -214,7 +214,7 @@ with serve(library, book, port=0) as url:
       assert.ok(zoomed > fit, `Zoom did not enlarge the ${target} from ${fit} px (got ${zoomed} px)`);
       await page.getByRole('button', {name:'Fit', exact:true}).click();
       assert.equal(await size(), fit);
-      await page.keyboard.press('Escape');
+      await page.locator('#dialog .dialog-title button').click();
       assert.equal(await page.locator('#dialog').isVisible(), false);
     }
     await page.locator('#back-button').click();

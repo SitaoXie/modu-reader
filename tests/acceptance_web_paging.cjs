@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const {values} = parseArgs({options:{
-  python:{type:'string'}, modules:{type:'string'}, browser:{type:'string'}, work:{type:'string'},
+  python:{type:'string'}, modules:{type:'string'}, browser:{type:'string'}, work:{type:'string'}, continuous:{type:'boolean'},
 }});
 for (const key of ['python','modules','browser','work']) {
   if (!values[key]) throw Error('Missing --' + key);
@@ -66,6 +66,13 @@ with serve(library, book, port=0) as url:
     await page.goto(url);
     await page.waitForFunction(()=>document.querySelector('#book-frame').contentDocument?.getElementById('line-1'));
     await page.waitForFunction(()=>!document.querySelector('#next').disabled);
+    if (values.continuous) {
+      await page.click('#settings-button');
+      await page.getByLabel('Start chapters on a new page').uncheck();
+      await page.waitForFunction(()=>document.querySelector('#book-frame').contentDocument?.querySelector('[data-modu-section]'));
+      await page.locator('#dialog .dialog-title button').click();
+      await page.waitForTimeout(150);
+    }
     const snapshot=()=>page.evaluate(()=>{
       const frame=document.querySelector('#book-frame');
       const doc=frame.contentDocument;
@@ -113,6 +120,8 @@ with serve(library, book, port=0) as url:
       await page.waitForTimeout(60);
     }
     assert.deepEqual(pages.flatMap(page=>page.visible),Array.from({length:117},(_,i)=>i+1));
+    const crossed = pages.some(page=>page.visible[0] <= 80 && page.visible.at(-1)>80);
+    assert.equal(crossed,!!values.continuous,'Chapter break setting did not control the boundary');
     for(let index=pages.length-2;index>=0;index--){
       await page.keyboard.press('ArrowLeft');
       await page.waitForTimeout(80);
@@ -128,7 +137,43 @@ with serve(library, book, port=0) as url:
     await page.keyboard.press('PageDown');
     const after=await snapshot();
     assert.equal(after.visible[0],before.visible.at(-1)+1);
-    console.log(JSON.stringify({screens:pages.length,lines:117,reverse:pages.length-1,resized:true}));
+    // Search every chapter, jump to a late result and highlight its exact text.
+    await page.click('#search-button');
+    await page.getByRole('searchbox').fill('Line 091');
+    await page.getByRole('searchbox').press('Enter');
+    await page.locator('.search-results button').first().click();
+    await page.waitForFunction(()=>{
+      const doc=document.querySelector('#book-frame').contentDocument;
+      return doc?.defaultView.CSS.highlights.get('modu-search')?.size === 1;
+    });
+    const searchView=await snapshot();
+    assert.ok(searchView.visible.includes(91), 'Search did not show matching line');
+    // Settings preserve the first visible text and persist across reload.
+    const layoutAnchor=searchView.visible[0];
+    await page.click('#settings-button');
+    await page.getByLabel('Reading width').selectOption('64');
+    await page.getByLabel('Paragraph spacing').selectOption('0');
+    await page.locator('#dialog .dialog-title button').click();
+    await page.waitForTimeout(150);
+    assert.equal((await snapshot()).visible[0],layoutAnchor);
+    for(const width of [360,900,460]) {
+      await page.setViewportSize({width,height:650});
+      await page.waitForTimeout(150);
+      assert.equal((await snapshot()).visible[0],layoutAnchor);
+      await page.click('#settings-button');
+      assert.equal(await page.evaluate(()=>document.querySelector('#dialog').scrollWidth > document.querySelector('#dialog').clientWidth),false);
+      await page.locator('#dialog .dialog-title button').click();
+    }
+    await page.waitForTimeout(350);
+    await page.reload();
+    await page.waitForFunction(()=>document.querySelector('#book-frame').contentDocument?.getElementById('line-91'));
+    await page.click('#settings-button');
+    assert.equal(await page.getByLabel('Reading width').inputValue(),'64');
+    assert.equal(await page.getByLabel('Paragraph spacing').inputValue(),'0');
+    assert.equal(await page.getByLabel('Start chapters on a new page').isChecked(),!values.continuous);
+    await page.locator('#dialog .dialog-title button').click();
+    await page.screenshot({path:path.join(work,'reader.png')});
+    console.log(JSON.stringify({screens:pages.length,lines:117,reverse:pages.length-1,resized:true,continuous:!!values.continuous,crossed,search:true,settings:true}));
   } finally {
     await browser?.close();
     server.kill();

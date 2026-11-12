@@ -1,5 +1,12 @@
 # 更新记录 / Changelog
 
+## 1.3.0b8 — 两端功能补齐 / Terminal and Web parity
+
+终端增加拖选翻译、可选松手自动翻译、英美音标和发音、生词收藏切换、译文编辑及正文标注，复用 Web 的引擎与语言偏好。Web 增加全书搜索、正文宽度、三档段间距和章节另起页开关；关闭时保留章节样式并按需连续加载。PDF 搜索使用原页文字层，排版设置只作用于可重排格式。
+
+The terminal adds mouse selection translation, optional automatic lookup, UK/US IPA and audio, vocabulary toggling, meaning edits and inline saved-word marks, using the Web reader's engine and language preferences. Web adds full-book search, reading width, three paragraph spacings and chapter breaks. Continuous mode retains scoped chapter styles and loads subsequent chapters on demand. PDF search uses its original text layer; layout controls apply to reflowable formats.
+
+
 ## 1.3.0b7 — 收藏切换 / Vocabulary toggle
 
 词卡上的收藏按钮支持再次点击取消，正文标注同步更新。新译词、已保存词和手动翻译使用相同交互。

@@ -10,6 +10,7 @@ LANGUAGES = ("zh", "en")
 
 # Chinese source strings are message IDs; templates format only named values.
 ENGLISH = {
+    "段间留白  ·  宽松": "Paragraph spacing · Airy",
     "打开 Web 阅读视图，保留 EPUB 和 PDF 排版": "Open the Web reader with EPUB and PDF layouts",
     "在浏览器中打开 Web 阅读视图": "Open the Web reader in a browser",
     "提供本机 Web 阅读地址，不打开窗口": "Serve the Web reader at a local address without opening a window",

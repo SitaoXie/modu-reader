@@ -1,5 +1,18 @@
 # 实测记录 / Validation record
 
+## 1.3.0b8 — 两端功能补齐 / Terminal and Web parity
+
+Python 3.11、3.14 各通过 178 项测试。独立真实 PTY 用鼠标选择含中文标点行中的英文单词，验证精确选区、松手后自动翻译（拖动中不请求）、音标、收藏/取消/再收藏、正文下划线、缓存词点击、生词本及重启后的数据库保存。已安装的 1.1.20 通过相同 PTY 验收。安装版另完成 9 页、3504 个非空字符的真实终端回归，重复与遗漏均为零；覆盖 26 次界面语言切换、8 款主题、18 次缩放、设置按钮单行显示和退出续读。
+
+Chromium 在章节另起页开启和关闭两种模式下，各逐行验证 117 行、19 屏、18 次反向翻页，无漏行或重复。关闭时同一屏跨越章节边界，开启时不跨章。覆盖全书搜索跳转与标记、64 列宽、紧凑间距、360/460/900 像素缩放、窄窗设置无横向溢出及重载保存。安装版连续模式通过相同验收。
+
+460 像素浏览器继续通过手动/自动划词、两类图片缩放、词条修改、跨书匹配及三种词卡中的收藏切换。macOS WebKit 独立窗口通过连续模式、搜索、划词、图片放大和 3 处生词标注；WebKit 指针路径使用派发事件，Chromium 使用真实鼠标输入。真实英文 EPUB 以隔离书库测试搜索、连续阅读与封面放大；自制 PDF 验证搜索定位及固定版式设置禁用。商业书正文没有发送给翻译服务，截图和测试书均不进入发布包。
+
+Google、有道与本地 Argos 用测试单词实测返回译文。英美音标均返回，macOS 本地语音、英式和美式音频播放进程正常完成。Windows/Linux 原生语音与终端体验尚未现场验收。
+
+English: Python 3.11 and 3.14 each passed 178 tests. Independent real-PTY acceptance covered mouse selection beside CJK punctuation, IPA, save/remove/re-add, inline marks, cached lookup, vocabulary and durable state, including installed 1.1.20. Chromium verified all 117 lines over 19 screens and 18 reverse turns in each chapter-break mode, with a mixed-chapter screen only when breaks were disabled. Full-book search, highlights, width/spacing changes, 360/460/900 px resizing, narrow settings and persisted preferences passed. Existing selection/vocabulary/image regressions passed. A separate macOS WebKit window passed search, continuous flow, selection, zoom and saved-word highlights; its pointer path uses dispatched events. A private English EPUB and synthetic PDF validated real content, without sending commercial text to online services. Google, Youdao and local Argos returned translations for a test word; UK/US IPA and all three macOS playback paths completed. Native Windows/Linux acceptance remains outstanding.
+
+
 ## 1.3.0b7 — 收藏切换 / Vocabulary toggle
 
 460 像素 Chromium 在新译词浮层、重载后的已保存词浮层和手动翻译窗口中，分别验证同一按钮的加入、取消、再次加入，以及正文标注即时增减。继续通过跨书匹配、译文修改和删除验证。
