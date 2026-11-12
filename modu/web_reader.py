@@ -384,8 +384,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.json(set_option(reader.library, data))
         if route == "api/vocabulary":
             return self.json(reader.vocabulary.update(data))
+        if route == "api/phonetics":
+            return self.json(reader.vocabulary.phonetics(data))
         if route == "api/pronounce":
-            return self.send_data(pronunciation(data.get("text")), "audio/mpeg")
+            return self.send_data(pronunciation(data.get("text"), data.get("accent", "us")), "audio/mpeg")
         match = re.fullmatch(r"book/([a-f0-9]{64})/(\w+)", route)
         if match:
             identifier, action = match.groups()

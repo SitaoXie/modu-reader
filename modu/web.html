@@ -54,12 +54,15 @@
 <button id="selection" data-label="translate" hidden></button>
 <aside id="selection-preview" hidden>
   <div class="selection-heading">
-    <strong id="selection-engine"></strong>
-    <button id="selection-close" type="button" data-label="close"></button>
+    <strong id="selection-engine" class="lookup-word"></strong>
+    <button id="selection-close" class="icon-button" type="button"></button>
   </div>
+  <div id="selection-pronunciation"></div>
   <p id="selection-result" role="status"></p>
-  <div id="selection-actions" class="word-actions"></div>
-  <button id="selection-source" type="button" data-label="source"></button>
+  <div class="lookup-footer">
+    <div id="selection-actions" class="word-actions"></div>
+    <button id="selection-source" class="text-button" type="button" data-label="translationOptions"></button>
+  </div>
 </aside>
 <div id="toast" role="status" hidden></div>
 <dialog id="dialog">

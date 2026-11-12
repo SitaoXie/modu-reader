@@ -5,6 +5,7 @@ import pytest
 from modu.library import Library
 from modu.vocabulary import Vocabulary
 from modu import translation
+from modu import vocabulary
 
 
 def test_vocabulary_persists_deduplicates_and_survives_book_deletion(tmp_path):
@@ -44,3 +45,41 @@ def test_pronunciation_is_bounded_and_rejects_html(monkeypatch):
     monkeypatch.setattr(translation, "_web_response", lambda _: b"<html>unavailable</html>")
     with pytest.raises(translation.TranslationError, match="speech_failed"):
         translation.pronunciation("quiet")
+
+
+def test_phonetics_are_cached_and_local_mode_needs_explicit_lookup(tmp_path, monkeypatch):
+    words = Vocabulary(Library(tmp_path))
+    calls = []
+
+    def lookup(word):
+        calls.append(word)
+        return {"uk": "ˈkwaɪət", "us": "ˈkwaɪət"}
+
+    monkeypatch.setattr(vocabulary, "word_phonetics", lookup)
+    assert words.phonetics({"word": "quiet", "lookup": False}) == {}
+    assert calls == []
+    expected = words.phonetics({"word": "Quiet", "lookup": True})
+    reopened = Vocabulary(Library(tmp_path))
+    assert reopened.phonetics({"word": "QUIET", "lookup": False}) == expected
+    assert reopened.phonetics({"word": "quiet", "lookup": True}) == expected
+    assert calls == ["quiet"]
+    assert words.phonetics({"word": "安静", "lookup": True}) == {}
+
+
+def test_phonetics_require_matching_dictionary_word(monkeypatch):
+    import json
+    entry = {"return-phrase": {"l": {"i": "quiet"}}, "ukphone": "ˈkwaɪət", "usphone": "ˈkwaɪət"}
+    monkeypatch.setattr(translation, "_web_response", lambda _: json.dumps({"ec": {"word": [entry]}}).encode())
+    assert translation.word_phonetics("quiet") == {"uk": "ˈkwaɪət", "us": "ˈkwaɪət"}
+    assert translation.word_phonetics("unrecognizedword") == {}
+
+
+def test_pronunciation_uses_requested_accent(monkeypatch):
+    from urllib.parse import parse_qs, urlsplit
+    requests = []
+    monkeypatch.setattr(translation, "_web_response", lambda request: requests.append(request) or b"ID3audio")
+    for accent in ("uk", "us"):
+        assert translation.pronunciation("quiet", accent) == b"ID3audio"
+    assert [parse_qs(urlsplit(request.full_url).query)["type"] for request in requests] == [["1"], ["2"]]
+    with pytest.raises(ValueError, match="Invalid accent"):
+        translation.pronunciation("quiet", "other")

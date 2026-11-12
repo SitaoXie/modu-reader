@@ -1,5 +1,13 @@
 # 实测记录 / Validation record
 
+## 1.3.0b6 — 词典卡片 / Dictionary cards
+
+Python 3.11 和 3.14 各通过 170 项测试。用自编示例在 460 像素深色、360 像素浅色 Chromium 中检查词典卡片、真实音标、英美喇叭、收藏和管理入口。两个口音的实际音频均完成解码与播放，界面显示对应播放状态。卡片无横向溢出，音标在重载后从本机缓存恢复。本地翻译模式的音标查询必须主动触发。
+
+安装版 1.1.18 通过生词、选词、图片缩放浏览器回归与 macOS WebKit 检查。
+
+Python 3.11 and 3.14 each passed 170 tests. Chromium checks covered dictionary cards at 460 px in dark mode and 360 px in light mode, live IPA, British and American audio, save controls and vocabulary management. Both accent clips decoded and played with the matching playback state. Cards had no horizontal overflow. IPA persists locally, and on-device translation requires an explicit remote lookup. Installed 1.1.18 passed browser regressions and macOS WebKit checks.
+
 ## 1.3.0b5 — 生词本与发音 / Vocabulary and pronunciation
 
 Python 3.11 和 3.14 各通过 167 项测试。旧运行服务实测缺少翻译设置接口并返回 404，新版固定服务启动时的界面资源，并验证无书状态下也可保存翻译设置。

@@ -234,11 +234,13 @@ def _web_response(request: Request) -> bytes:
     raise TranslationError("web_translation_failed") from None
 
 
-def pronunciation(text: str) -> bytes:
+def pronunciation(text: str, accent: str = "us") -> bytes:
     if not isinstance(text, str) or not 0 < len(text.strip()) <= 200:
         raise TranslationError("speech_too_long")
+    if accent not in ("uk", "us"):
+        raise ValueError("Invalid accent")
     request = Request(  # nosec B310
-        "https://dict.youdao.com/dictvoice?" + urlencode({"audio": text.strip(), "type": "2"})
+        "https://dict.youdao.com/dictvoice?" + urlencode({"audio": text.strip(), "type": "1" if accent == "uk" else "2"})
     )
     try:
         data = _web_response(request)
@@ -247,6 +249,26 @@ def pronunciation(text: str) -> bytes:
     except TranslationError:
         pass
     raise TranslationError("speech_failed")
+
+
+def word_phonetics(word: str) -> dict[str, str]:
+    request = Request(  # nosec B310
+        "https://dict.youdao.com/jsonapi?" + urlencode({
+            "q": word, "dicts": json.dumps({"count": 1, "dicts": [["ec"]]}),
+        })
+    )
+    try:
+        entries = json.loads(_web_response(request)).get("ec", {}).get("word", [])
+        for entry in entries:
+            if entry.get("return-phrase", {}).get("l", {}).get("i", "").lower() == word:
+                return {
+                    accent: value.strip().strip("/[]") for accent in ("uk", "us")
+                    if isinstance(value := entry.get(accent + "phone"), str)
+                    and 0 < len(value.strip()) <= 120
+                }
+    except (AttributeError, KeyError, TypeError, ValueError):
+        raise TranslationError("phonetics_failed") from None
+    return {}
 
 
 def _google(text: str, source: str, target: str) -> tuple[str, str]:

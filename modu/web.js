@@ -231,6 +231,16 @@ const strings = {
   speech_too_long: ["发音最多支持 200 个字符。", "Pronunciation supports up to 200 characters."],
   removeWord: ["从生词本移除此词？", "Remove this word from Vocabulary?"],
   highlightUnavailable: ["此浏览器不支持正文生词标注，可从生词本查看。", "This browser cannot highlight vocabulary. Open Vocabulary to review saved words."],
+  translationOptions: ["翻译选项", "Translation options"],
+  phonetics: ["查询音标", "Look up IPA"], phonetics_failed: ["音标暂不可用，点击重试", "IPA unavailable. Retry"],
+  noPhonetics: ["暂无音标", "IPA unavailable"],
+  uk: ["英", "UK"], us: ["美", "US"],
+  ukSpeak: ["英式发音 · 有道", "British pronunciation · Youdao"],
+  usSpeak: ["美式发音 · 有道", "American pronunciation · Youdao"],
+  phoneticsNote: ["音标与在线发音由有道提供", "IPA and online audio by Youdao"],
+  phoneticsLookupNote: ["将此单词发送给有道查询音标", "Send this word to Youdao to look up IPA"],
+  savedWord: ["已收藏", "Saved"],
+  manageWord: ["管理生词", "Edit saved word"],
   too_long: ["请选择不超过 600 个字符的文字。", "Select up to 600 characters."],
   unsupported_language: ["暂不支持这组语言。请在设置中选择其他目标语言。", "This language pair is unavailable. Choose another target in Settings."],
   dependencies: ["请安装 MODU 的 translation 扩展。", "Install MODU with its translation extra."],
@@ -255,6 +265,9 @@ let wordDocument;
 let audioPlayer;
 let audioUrl;
 let speechRequest;
+let speechControl;
+let previewDocument;
+const phoneticCache = new Map();
 let toastTimer;
 let saveTimer;
 let bookGeneration = 0;
@@ -282,6 +295,33 @@ function button(text, handler) {
   node.type = "button";
   node.addEventListener("click", handler);
   return node;
+}
+
+function icon(name) {
+  const paths = {
+    speaker: ["M11 5 6 9H3v6h3l5 4V5Z", "M15 8a6 6 0 0 1 0 8", "M18 5a10 10 0 0 1 0 14"],
+    close: ["m6 6 12 12", "M18 6 6 18"],
+    bookmark: ["M6 4h12v17l-6-4-6 4V4Z"],
+    check: ["m5 12 4 4L19 6"],
+    chevron: ["m9 5 7 7-7 7"],
+  };
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  for (const [key, value] of Object.entries({viewBox:"0 0 24 24", width:"18", height:"18", fill:"none", stroke:"currentColor", "stroke-width":"1.7", "stroke-linecap":"round", "stroke-linejoin":"round", "aria-hidden":"true"})) svg.setAttribute(key, value);
+  for (const d of paths[name]) {
+    const path = document.createElementNS(svg.namespaceURI, "path");
+    path.setAttribute("d", d);
+    svg.append(path);
+  }
+  return svg;
+}
+
+function iconButton(name, title, handler) {
+  const control = button("", handler);
+  control.className = "icon-button";
+  control.setAttribute("aria-label", title);
+  control.title = title;
+  control.append(icon(name));
+  return control;
 }
 
 async function api(path, data, extra = {}) {
@@ -314,6 +354,9 @@ function setLabels() {
   for (const node of document.querySelectorAll("[data-label]")) node.textContent = label(node.dataset.label);
   $("tagline").textContent = label("tagline");
   frame.title = label("contents");
+  $("selection-close").replaceChildren(icon("close"));
+  $("selection-close").setAttribute("aria-label", label("close"));
+  $("selection-close").title = label("close");
 }
 
 function setTheme(name, persist = true) {
@@ -842,6 +885,7 @@ function clearSelection() {
   translationRequest = undefined;
   selection = "";
   selectionPreview.hidden = $("selection").hidden = true;
+  previewDocument = undefined;
   stopSpeech();
 }
 
@@ -854,6 +898,7 @@ function readingSelection(doc) {
 }
 
 function placeSelection(node, range, box) {
+  if (node === selectionPreview) previewDocument = range.anchorNode?.ownerDocument;
   const rect = range.getRangeAt(0).getBoundingClientRect();
   const left = box.left + rect.left;
   const below = box.top + rect.bottom + 7;
@@ -906,17 +951,23 @@ async function previewTranslation(doc, getBox) {
   const {provider} = translationOptions();
   const request = new AbortController();
   translationRequest = request;
-  $("selection-engine").textContent = label(provider);
+  $("selection-engine").textContent = text;
+  $("selection-engine").classList.toggle("is-passage", text.length > 80);
+  $("selection-source").textContent = label("translationOptions");
+  $("selection-source").onclick = () => selectionDialog(false);
   const output = $("selection-result");
   output.textContent = translating(provider);
-  $("selection-actions").replaceChildren(...speechButtons(text, initialSource(item)));
+  $("selection-pronunciation").replaceChildren(...speechButtons(text, initialSource(item)));
+  $("selection-actions").replaceChildren(element("span", label(provider), "lookup-provider"));
   selectionPreview.hidden = false;
   placeSelection(selectionPreview, range, getBox());
   try {
     const result = await api(bookPath(item) + "/translate", {text, source: initialSource(item), provider}, {signal: request.signal});
     if (!request.signal.aborted) {
       output.textContent = result.text;
-      $("selection-actions").replaceChildren(...speechButtons(text, result.source), ...wordButtons(text, result));
+      $("selection-pronunciation").replaceChildren(...speechButtons(text, result.source));
+      $("selection-actions").replaceChildren(...wordButtons(text, result));
+      if (!$("selection-actions").childElementCount) $("selection-actions").append(element("span", label(provider), "lookup-provider"));
     }
   } catch (error) {
     if (!request.signal.aborted) output.textContent = label(error.message);
@@ -944,11 +995,14 @@ async function selectionDialog(start = true) {
     const options = Object.entries(shelfData.languages);
     const source = selectField(label("source"), [["", label("auto")], ...options], initialSource(item));
     const description = element("p", label("target") + " · " + (shelfData.languages[pref.target] || pref.target));
-    const output = element("div", "", "translation-result");
+    const output = element("div", "", "translation-result lookup-meaning");
     output.hidden = true;
     output.setAttribute("aria-live", "polite");
     const actions = element("div", null, "word-actions");
-    actions.append(...speechButtons(text, initialSource(item)));
+    const pronunciation = element("div");
+    pronunciation.append(...speechButtons(text, initialSource(item)));
+    const localSpeech = element("div");
+    localSpeech.append(...speechButtons(text, initialSource(item), true));
     const go = button(label("translate"), async () => {
       go.disabled = true;
       output.hidden = false;
@@ -956,17 +1010,25 @@ async function selectionDialog(start = true) {
       try {
         const result = await api(bookPath(item) + "/translate", {text, source: source.querySelector("select").value, provider});
         output.textContent = result.text;
-        actions.replaceChildren(...speechButtons(text, result.source), ...wordButtons(text, result));
+        pronunciation.replaceChildren(...speechButtons(text, result.source));
+        localSpeech.replaceChildren(...speechButtons(text, result.source, true));
+        actions.replaceChildren(...wordButtons(text, result));
       } catch (error) { output.textContent = label(error.message); }
       finally { go.disabled = false; }
     });
-    showDialog(label("translate") + " · " + label(provider),
-      [element("p", text, "selected-original"), source, description, element("p", translationNotice(provider), "muted"), go, output, actions]);
+    const details = element("details", null, "lookup-options");
+    details.append(element("summary", label("translationOptions")), source, description,
+      element("p", translationNotice(provider), "muted"), localSpeech, go);
+    const isWord = text.length <= 80 && !/\s/.test(text);
+    const nodes = [pronunciation, output, actions, details];
+    if (!isWord) nodes.unshift(element("p", text, "selected-original"));
+    showDialog(isWord ? text : label("translate"), nodes, "lookup-dialog");
     const cached = savedWord(text);
     if (cached) {
       output.hidden = false;
       output.textContent = cached.translation;
-      actions.replaceChildren(...speechButtons(text, cached.source));
+      pronunciation.replaceChildren(...speechButtons(text, cached.source));
+      actions.replaceChildren(element("span", label("savedWord"), "saved-word-badge"));
     } else if (start) go.click();
   } catch (error) { report(error); }
 }
@@ -1004,6 +1066,12 @@ function bindImages(doc) {
 }
 
 function stopSpeech() {
+  if (speechControl) {
+    speechControl.classList.remove("is-loading", "is-playing");
+    speechControl.setAttribute("aria-pressed", "false");
+    speechControl.setAttribute("aria-busy", "false");
+    speechControl = undefined;
+  }
   speechRequest?.abort();
   speechRequest = undefined;
   window.speechSynthesis?.cancel();
@@ -1013,8 +1081,90 @@ function stopSpeech() {
   audioUrl = undefined;
 }
 
-function speechButtons(text, source) {
-  const local = button(label("speak"), () => {
+function speechButtons(text, source, localOnly = false) {
+  const row = element("div", null, "pronunciation-row");
+  const english = source === "en" && !localOnly;
+  const isWord = /^[a-z]+(?:['’\-][a-z]+)*$/i.test(text.trim()) && text.length <= 80;
+  function onlineButton(accent, title) {
+    const control = iconButton("speaker", title, async () => {
+      if (speechControl === control) return stopSpeech();
+      stopSpeech();
+      const request = new AbortController();
+      speechRequest = request;
+      speechControl = control;
+      control.classList.add("is-loading");
+      control.setAttribute("aria-busy", "true");
+      try {
+        const response = await fetch(endpoint("api/pronounce"), {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({text, accent}), signal: request.signal,
+        });
+        if (!response.ok) throw new Error((await response.json()).error);
+        const blob = await response.blob();
+        if (request.signal.aborted) return;
+        audioUrl = URL.createObjectURL(blob);
+        audioPlayer = new Audio(audioUrl);
+        audioPlayer.onended = () => { if (speechControl === control) stopSpeech(); };
+        audioPlayer.onerror = () => { if (speechControl === control) { stopSpeech(); toast(label("speech_failed")); } };
+        await audioPlayer.play();
+        if (request.signal.aborted) return;
+        control.classList.remove("is-loading");
+        control.classList.add("is-playing");
+        control.setAttribute("aria-busy", "false");
+        control.setAttribute("aria-pressed", "true");
+      } catch (error) {
+        if (!request.signal.aborted) {
+          stopSpeech();
+          toast(label(error.message === "speech_too_long" ? error.message : "speech_failed"));
+        }
+      }
+    });
+    control.setAttribute("aria-pressed", "false");
+    return control;
+  }
+  if (english && isWord) {
+    const phones = {};
+    for (const accent of ["uk", "us"]) {
+      const group = element("div", null, "pronunciation-group");
+      const phone = element("span", "", "ipa");
+      phones[accent] = phone;
+      group.append(element("span", label(accent), "accent-label"), phone,
+        onlineButton(accent, label(accent + "Speak")));
+      row.append(group);
+    }
+    const lookup = button(label("phonetics"), () => load(true));
+    lookup.className = "text-button phonetics-lookup";
+    lookup.title = label("phoneticsLookupNote");
+    row.append(lookup);
+    row.title = label("phoneticsNote");
+    async function load(remote) {
+      lookup.disabled = true;
+      const key = wordKey(text);
+      const cacheKey = key + ":" + remote;
+      try {
+        if (!phoneticCache.has(cacheKey)) {
+          if (phoneticCache.size > 256) phoneticCache.clear();
+          phoneticCache.set(cacheKey, api("api/phonetics", {word: key, lookup: remote}));
+        }
+        const result = await phoneticCache.get(cacheKey);
+        if (Object.keys(result).length) phoneticCache.set(key + ":false", Promise.resolve(result));
+        for (const accent of ["uk", "us"]) phones[accent].textContent = result[accent] ? "/" + result[accent] + "/" : "";
+        lookup.hidden = Boolean(result.uk || result.us);
+        lookup.textContent = label(remote ? "noPhonetics" : "phonetics");
+      } catch {
+        phoneticCache.delete(cacheKey);
+        lookup.textContent = label("phonetics_failed");
+      } finally { lookup.disabled = false; }
+    }
+    load(translationOptions().provider !== "local");
+    return [row];
+  }
+  if (english) {
+    row.append(element("span", label("speak"), "muted"), onlineButton("us", label("onlineSpeak")));
+    return [row];
+  }
+  const local = iconButton("speaker", label("speak"), () => {
+    if (speechControl === local) return stopSpeech();
     stopSpeech();
     if (Array.from(text).length > 200) return toast(label("speech_too_long"));
     const primary = (source || "en").split("-")[0];
@@ -1025,36 +1175,19 @@ function speechButtons(text, source) {
     utterance.voice = voice;
     utterance.lang = voice.lang;
     utterance.rate = 0.85;
+    speechControl = local;
+    local.classList.add("is-playing");
+    local.setAttribute("aria-pressed", "true");
+    utterance.onend = () => { if (speechControl === local) stopSpeech(); };
     utterance.onerror = event => {
+      if (speechControl === local) stopSpeech();
       if (!["interrupted", "canceled"].includes(event.error)) toast(label("speech_failed"));
     };
     window.speechSynthesis.speak(utterance);
   });
-  // Prime the voice list while the reader is idle, before the user's click.
   window.speechSynthesis?.getVoices();
-  if (source && source !== "en") return [local];
-  const online = button(label("onlineSpeak"), async () => {
-    stopSpeech();
-    const request = new AbortController();
-    speechRequest = request;
-    online.disabled = true;
-    try {
-      const response = await fetch(endpoint("api/pronounce"), {
-        method: "POST", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({text}), signal: request.signal,
-      });
-      if (!response.ok) throw new Error((await response.json()).error);
-      const blob = await response.blob();
-      if (request.signal.aborted) return;
-      audioUrl = URL.createObjectURL(blob);
-      audioPlayer = new Audio(audioUrl);
-      await audioPlayer.play();
-    } catch (error) {
-      if (!request.signal.aborted) toast(label(error.message === "speech_too_long" ? error.message : "speech_failed"));
-    } finally { online.disabled = false; }
-  });
-  online.title = label("onlineSpeechNote");
-  return [local, online];
+  row.append(element("span", label("speak"), "muted"), local);
+  return [row];
 }
 
 function wordKey(text) {
@@ -1078,9 +1211,13 @@ function wordButtons(text, result) {
     try {
       words = await api("api/vocabulary", {word: text, source: result.source, target: result.target, translation: result.text});
       highlightWords();
-      save.textContent = label("wordSaved");
+      save.replaceChildren(icon("check"), element("span", label("savedWord")));
+      save.setAttribute("aria-label", label("wordSaved"));
     } catch (error) { save.disabled = false; report(error); }
   });
+  save.className = "save-word";
+  save.replaceChildren(icon("bookmark"), element("span", label("saveWord")));
+  save.setAttribute("aria-label", label("saveWord"));
   return [save];
 }
 
@@ -1145,9 +1282,15 @@ function showSavedWord(entry, range, doc, box) {
   selected.removeAllRanges();
   selected.addRange(range.cloneRange());
   selection = selected.toString().trim();
-  $("selection-engine").textContent = entry.word + " · " + label("vocabulary");
+  $("selection-engine").textContent = entry.word;
+  $("selection-engine").classList.remove("is-passage");
   $("selection-result").textContent = entry.translation;
-  $("selection-actions").replaceChildren(...speechButtons(entry.word, entry.source));
+  $("selection-pronunciation").replaceChildren(...speechButtons(entry.word, entry.source));
+  const badge = element("span", null, "saved-word-badge");
+  badge.append(icon("check"), element("span", label("savedWord")));
+  $("selection-actions").replaceChildren(badge);
+  $("selection-source").textContent = label("manageWord");
+  $("selection-source").onclick = () => editWord(entry);
   selectionPreview.hidden = false;
   placeSelection(selectionPreview, selected, box);
 }
@@ -1167,14 +1310,19 @@ async function vocabulary() {
       const entries = words.filter(word => wordKey(word.word).includes(query) || word.translation.toLowerCase().includes(query));
       list.replaceChildren(...entries.map(entry => {
         const row = element("div", null, "word-row");
-        row.append(button(entry.word + " · " + entry.translation, () => editWord(entry)));
+        const open = button("", () => editWord(entry));
+        open.setAttribute("aria-label", entry.word + " · " + entry.translation);
+        const content = element("span", null, "word-summary");
+        content.append(element("strong", entry.word), element("span", entry.translation, "muted"));
+        open.append(content, icon("chevron"));
+        row.append(open);
         return row;
       }));
       if (!entries.length) list.append(element("p", label("noWords"), "muted"));
     }
     search.oninput = render;
     render();
-    const nodes = [search, list];
+    const nodes = [search, element("p", String(words.length) + " · " + label("vocabulary"), "muted word-count"), list];
     if (!window.CSS?.highlights) nodes.push(element("p", label("highlightUnavailable"), "muted"));
     showDialog(label("vocabulary"), nodes);
   } catch (error) { report(error); }
@@ -1187,7 +1335,7 @@ function editWord(entry) {
   meaning.maxLength = 4000;
   field.append(meaning);
   const actions = element("div", null, "word-actions");
-  actions.append(...speechButtons(entry.word, entry.source),
+  actions.append(
     button(label("save"), async () => {
       try {
         words = await api("api/vocabulary", {...entry, translation: meaning.value});
@@ -1197,7 +1345,7 @@ function editWord(entry) {
       words = await api("api/vocabulary", {...entry, remove: true});
       await vocabulary();
     })));
-  showDialog(entry.word + " · " + entry.source + " → " + entry.target, [field, actions]);
+  showDialog(entry.word, [...speechButtons(entry.word, entry.source), field, actions], "lookup-dialog");
 }
 
 function showImage(url, alt) {
@@ -1319,6 +1467,12 @@ $("selection").onclick = () => selectionDialog();
 selectionPreview.addEventListener("mousedown", event => event.preventDefault());
 $("selection-close").onclick = clearSelection;
 $("selection-source").onclick = () => selectionDialog(false);
+new ResizeObserver(() => {
+  const selected = previewDocument?.getSelection();
+  if (selectionPreview.hidden || !selected?.rangeCount) return;
+  const box = previewDocument === document ? {left: 0, top: 0} : frame.getBoundingClientRect();
+  placeSelection(selectionPreview, selected, box);
+}).observe(selectionPreview);
 bindSelection(document, pdfView, () => ({left: 0, top: 0}));
 document.addEventListener("keydown", keyboard);
 $("import-button").onclick = () => {

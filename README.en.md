@@ -62,7 +62,7 @@ These workflows need no dedicated integration. MODU does not read AI conversatio
 
 Antigravity also documents a side-panel terminal. Its native interaction has not been tested here, so it is listed as “possible, untested,” rather than verified support. [Official documentation](https://antigravity.google/docs/features#integrated-terminal)
 
-**Status: 1.3.0b5 open-source release candidate.** Locally validated on macOS, including user confirmation of right-rail alignment and hiding in the target embedded terminal. Windows/Linux code paths and CI definitions are included, but native terminal acceptance is pending. The same commands can be tried in Windows Terminal with PowerShell. Use a terminal with mouse and truecolor support. The interface supports English and Simplified Chinese; book text stays in its original language.
+**Status: 1.3.0b6 open-source release candidate.** Locally validated on macOS, including user confirmation of right-rail alignment and hiding in the target embedded terminal. Windows/Linux code paths and CI definitions are included, but native terminal acceptance is pending. The same commands can be tried in Windows Terminal with PowerShell. Use a terminal with mouse and truecolor support. The interface supports English and Simplified Chinese; book text stays in its original language.
 
 ## Interface language
 
@@ -104,7 +104,9 @@ Select a passage and click **Translate** beside it. In **Settings**, enable **Tr
 
 Choose a target in **Settings → Target for this book** to override only that book. The global setting defaults to the system language, with English as fallback when the system language is unavailable. Each selection can contain up to 600 characters. Scanned PDFs need a text layer for selection.
 
-Choose **Pronounce** to use an available local browser voice. For English, **Youdao audio** sends the original text to Youdao for pronunciation, up to 200 characters. Translate a word and choose **Save word**. Open **Vocabulary** in the reading toolbar to search, edit a meaning, or remove an entry. Entries stay in the local library and work across books, separated by source and target language. Saved words are highlighted with case-insensitive whole-word matching. Click a highlighted word to see its saved meaning. Highlighting requires a modern browser with CSS Custom Highlight support.
+Word translations use a dictionary card with British and American IPA and speaker icons for the corresponding accents. Youdao supplies IPA and online audio, with pronunciation limited to 200 characters. Online translation looks up IPA for the selected word and caches it locally. With on-device translation, choose **Look up IPA** to request it. **Translation options** contains source-language controls, retranslation and local browser pronunciation.
+
+Translate a word and choose **Save word**. Open **Vocabulary** in the reading toolbar to search, edit a meaning, or remove an entry. Entries stay in the local library and work across books, separated by source and target language. Saved words are highlighted with case-insensitive whole-word matching. Click a highlighted word to see its saved meaning. Highlighting requires a modern browser with CSS Custom Highlight support.
 
 Use `←` / `→`, `PgUp` / `PgDn`, or the footer buttons to turn one screen at a time. Tall PDF pages span several screens and keep their original page number in the footer. Use Contents to jump directly.
 

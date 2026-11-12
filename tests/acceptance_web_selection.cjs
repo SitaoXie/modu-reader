@@ -18,6 +18,7 @@ from threading import Event
 from zipfile import ZipFile
 
 from modu import translation
+from modu import vocabulary
 from modu.library import Library
 from modu.web_reader import serve
 
@@ -50,6 +51,7 @@ second.write_text("A QUIET place. Quietly is a different word.", encoding="utf-8
 library.import_file(second)
 translation._google = lambda text, source, target: ("安静的房间是读书的好地方。", "en")
 translation._youdao = lambda text, source, target: "安静的" if text.lower() == "quiet" else "适合读书的安静房间。"
+vocabulary.word_phonetics = lambda word: {"uk": "ˈkwaɪət", "us": "ˈkwaɪət"}
 with serve(library, book, port=0) as url:
     print(url, flush=True)
     Event().wait()
@@ -137,6 +139,9 @@ with serve(library, book, port=0) as url:
     const frameBox = await page.locator('#book-frame').boundingBox();
     await page.mouse.dblclick(frameBox.x + quiet.x, frameBox.y + quiet.y);
     await preview.getByText('安静的', {exact:true}).waitFor();
+    await preview.getByText('/ˈkwaɪət/', {exact:true}).first().waitFor();
+    await preview.getByRole('button', {name:'British pronunciation · Youdao', exact:true}).waitFor();
+    await preview.getByRole('button', {name:'American pronunciation · Youdao', exact:true}).waitFor();
     await preview.getByRole('button', {name:'Save word', exact:true}).click();
     await preview.getByRole('button', {name:'Word saved', exact:true}).waitFor();
     const highlighted = () => page.evaluate(() => {

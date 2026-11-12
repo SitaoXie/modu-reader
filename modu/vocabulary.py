@@ -5,7 +5,7 @@ import unicodedata
 
 import regex
 
-from .translation import LANGUAGES
+from .translation import LANGUAGES, word_phonetics
 
 
 def word_key(value):
@@ -28,6 +28,30 @@ class Vocabulary:
                     PRIMARY KEY (word_key, source, target)
                 )
             """)
+            connection.execute("""
+                CREATE TABLE IF NOT EXISTS phonetics (
+                    word_key TEXT PRIMARY KEY, uk TEXT, us TEXT
+                )
+            """)
+
+    def phonetics(self, data):
+        key = word_key(data.get("word"))
+        if not regex.fullmatch(r"[a-z]+(?:['-][a-z]+)*", key):
+            return {}
+        with self.library.connect() as connection:
+            row = connection.execute("SELECT uk, us FROM phonetics WHERE word_key=?", (key,)).fetchone()
+        if row is not None:
+            return {accent: row[accent] for accent in ("uk", "us") if row[accent]}
+        if data.get("lookup") is not True:
+            return {}
+        result = word_phonetics(key)
+        if result:
+            with self.library.connect() as connection:
+                connection.execute(
+                    "INSERT OR REPLACE INTO phonetics VALUES (?, ?, ?)",
+                    (key, result.get("uk"), result.get("us")),
+                )
+        return result
 
     def entries(self):
         with self.library.connect() as connection:
